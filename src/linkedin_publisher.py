@@ -50,8 +50,19 @@ class LinkedInPublisher:
         return {**self._auth_headers(restli=True), "Content-Type": "application/json"}
 
     def _get_person_urn(self) -> str:
-        """Resolve `urn:li:person:{id}` for ugcPosts (OpenID userinfo `sub` first, else /v2/me)."""
+        """Resolve `urn:li:person:{id}` for ugcPosts.
+
+        Prefer LINKEDIN_MEMBER_SUB (OpenID `sub`) first so CI/GitHub Actions can post without
+        calling userinfo or /v2/me — those endpoints may return 401/403 while w_member_social still works.
+        """
         if self._person_urn:
+            return self._person_urn
+
+        member_sub = getattr(self._config, "linkedin_member_sub", "") or ""
+        member_sub = member_sub.strip()
+        if member_sub:
+            self._person_urn = f"urn:li:person:{member_sub}"
+            logger.debug("LinkedIn person URN from LINKEDIN_MEMBER_SUB: {}", self._person_urn)
             return self._person_urn
 
         resp = requests.get(LINKEDIN_USERINFO_URL, headers=self._openid_headers(), timeout=30)
@@ -63,15 +74,14 @@ class LinkedInPublisher:
                 logger.debug("LinkedIn person URN from userinfo: {}", self._person_urn)
                 return self._person_urn
 
-        member_sub = getattr(self._config, "linkedin_member_sub", "") or ""
-        member_sub = member_sub.strip()
-        if member_sub:
-            self._person_urn = f"urn:li:person:{member_sub}"
-            logger.debug("LinkedIn person URN from LINKEDIN_MEMBER_SUB: {}", self._person_urn)
-            return self._person_urn
-
         resp = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise RuntimeError(
+                "Could not resolve LinkedIn member id for author URN. "
+                "Set repository secret LINKEDIN_MEMBER_SUB (from OAuth id_token `sub`) and ensure "
+                "LINKEDIN_ACCESS_TOKEN is valid, or refresh the token. "
+                f"userinfo was not used; /v2/me HTTP {resp.status_code}: {resp.text[:400]}"
+            )
         data = resp.json()
         person_id = data.get("id")
         if not person_id:

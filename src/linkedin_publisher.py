@@ -143,9 +143,9 @@ class LinkedInPublisher:
             raise RuntimeError("LINKEDIN_ACCESS_TOKEN is missing or empty.")
 
         headers = {"Authorization": f"Bearer {self._config.linkedin_access_token}"}
-        resp = requests.get(LINKEDIN_USERINFO_URL, headers=headers, timeout=30)
-        if resp.status_code == 200:
-            data = resp.json()
+        resp_ui = requests.get(LINKEDIN_USERINFO_URL, headers=headers, timeout=30)
+        if resp_ui.status_code == 200:
+            data = resp_ui.json()
             sub = str(data.get("sub", "") or "")
             name = (data.get("name") or "").strip()
             if not name:
@@ -166,7 +166,12 @@ class LinkedInPublisher:
             }
 
         resp = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
-        resp.raise_for_status()
+        if resp.status_code != 200:
+            raise RuntimeError(
+                f"LinkedIn token rejected: userinfo HTTP {resp_ui.status_code}, "
+                f"/v2/me HTTP {resp.status_code}. Refresh LINKEDIN_ACCESS_TOKEN "
+                f"(tokens expire ~60 days). userinfo: {resp_ui.text[:200]} | me: {resp.text[:200]}"
+            )
         data = resp.json()
         person_id = str(data.get("id", "") or "")
         first = str(data.get("localizedFirstName", "") or "")

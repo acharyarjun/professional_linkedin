@@ -6,8 +6,7 @@ LinkedIn OAuth (authorization code) helper for local development.
    http://127.0.0.1:8765/oauth/callback
 2. Set in .env:
    LINKEDIN_CLIENT_SECRET=...   (Auth tab in Developer Portal)
-   Optional: LINKEDIN_CLIENT_ID=78ujj98or1kf6a
-3. Run: python scripts/linkedin_oauth_local.py
+     Optional: LINKEDIN_CLIENT_ID=your_linkedin_app_client_id3. Run: python scripts/linkedin_oauth_local.py
    Browser opens → sign in → Allow → token is written to .env
 """
 from __future__ import annotations

@@ -1,6 +1,19 @@
-from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
+
+
+class LinkedInCredentials(BaseSettings):
+    """Minimal settings for LinkedIn-only commands (no Gemini key required)."""
+
+    model_config = SettingsConfigDict(
+        env_file=".env",
+        env_file_encoding="utf-8",
+        extra="ignore",
+    )
+
+    linkedin_email: str
+    linkedin_password: str
+    dry_run: bool = False
 
 
 class AppConfig(BaseSettings):
@@ -13,8 +26,8 @@ class AppConfig(BaseSettings):
     )
 
     gemini_api_key: str
-    linkedin_email: Optional[str] = None
-    linkedin_password: Optional[str] = None
+    linkedin_email: str
+    linkedin_password: str
     chroma_persist_dir: str = "./data/chroma"
     post_calendar_path: str = "./data/post_calendar.csv"
     schedule_hour: int = Field(default=12, ge=0, le=23)

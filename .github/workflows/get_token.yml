@@ -8,6 +8,8 @@ on:
         required: true
         type: string
 
+# The authorization_code must come from the same redirect_uri and scopes as local OAuth
+# (see scripts/linkedin_oauth_local.py: openid profile email w_member_social).
 jobs:
   exchange:
     runs-on: ubuntu-latest
@@ -21,7 +23,7 @@ jobs:
           RESPONSE=$(curl -s -S -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \
             --data-urlencode 'grant_type=authorization_code' \
             --data-urlencode "code=${CODE}" \
-            --data-urlencode 'redirect_uri=https://localhost' \
+            --data-urlencode 'redirect_uri=http://127.0.0.1:8765/oauth/callback' \
             --data-urlencode "client_id=${CLIENT_ID}" \
             --data-urlencode "client_secret=${CLIENT_SECRET}")
           echo "Raw response: $RESPONSE"

@@ -1,4 +1,4 @@
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -14,7 +14,18 @@ class LinkedInCredentials(BaseSettings):
     linkedin_email: str = ""
     linkedin_password: str = ""
     linkedin_access_token: str
+    linkedin_member_sub: str = ""  # OpenID `sub` from id_token if userinfo API is denied
     dry_run: bool = False
+
+    @field_validator("linkedin_access_token", mode="before")
+    @classmethod
+    def _strip_access_token(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("linkedin_member_sub", mode="before")
+    @classmethod
+    def _strip_member_sub(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
 
 
 class AppConfig(BaseSettings):
@@ -30,6 +41,18 @@ class AppConfig(BaseSettings):
     linkedin_email: str = ""
     linkedin_password: str = ""
     linkedin_access_token: str
+    linkedin_member_sub: str = ""
+
+    @field_validator("linkedin_access_token", mode="before")
+    @classmethod
+    def _strip_access_token(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
+    @field_validator("linkedin_member_sub", mode="before")
+    @classmethod
+    def _strip_member_sub(cls, v: object) -> object:
+        return v.strip() if isinstance(v, str) else v
+
     chroma_persist_dir: str = "./data/chroma"
     post_calendar_path: str = "./data/post_calendar.csv"
     schedule_hour: int = Field(default=12, ge=0, le=23)

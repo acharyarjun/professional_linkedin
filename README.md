@@ -63,20 +63,21 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 
 ## Test LinkedIn (no Gemini key)
 
-With `LINKEDIN_ACCESS_TOKEN` set in `.env`, verify the token against `GET https://api.linkedin.com/v2/me`:
+With `LINKEDIN_ACCESS_TOKEN` set in `.env`, verify the token against LinkedIn (`GET /v2/userinfo`, then `GET /v2/me` if needed):
 
 ```bash
 python main.py --test-linkedin
 ```
 
-This does **not** publish anything. If the token is expired or missing scopes, refresh the OAuth token in the [LinkedIn Developer Portal](https://www.linkedin.com/developers/).
+This does **not** publish anything. The access token must include **OpenID** scopes for userinfo (`openid`, `profile`, …) **and** `w_member_social` for posting. If you only authorized `w_member_social`, userinfo returns **401** — re-run the local OAuth helper below.
 
 ### Refresh `LINKEDIN_ACCESS_TOKEN` locally (browser + terminal)
 
-1. In the LinkedIn app **Auth** tab, add this **Authorized redirect URL** (exactly):  
+1. In the [Developer Portal](https://www.linkedin.com/developers/), open your app → **Products** and ensure **Sign In with LinkedIn using OpenID Connect** and **Share on LinkedIn** are added.
+2. Under **Auth**, add this **Authorized redirect URL** (exactly):  
    `http://127.0.0.1:8765/oauth/callback`
-2. Put **`LINKEDIN_CLIENT_SECRET`** (and optionally `LINKEDIN_CLIENT_ID`) in `.env`.
-3. Run:
+3. Put **`LINKEDIN_CLIENT_ID`** and **`LINKEDIN_CLIENT_SECRET`** in `.env`.
+4. Run:
 
 ```bash
 python scripts/linkedin_oauth_local.py

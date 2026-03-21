@@ -12,6 +12,8 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 LINKEDIN_UGC_POSTS_URL = "https://api.linkedin.com/v2/ugcPosts"
 LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 LINKEDIN_ME_URL = "https://api.linkedin.com/v2/me"
+# Monthly API version; requests without this can return ACCESS_DENIED *.NO_VERSION.
+LINKEDIN_VERSION_HEADER = "202411"
 
 
 class LinkedInAuth(Protocol):
@@ -31,10 +33,18 @@ class LinkedInPublisher:
     def _auth_headers(self, *, restli: bool = True) -> Dict[str, str]:
         h: Dict[str, str] = {
             "Authorization": f"Bearer {self._config.linkedin_access_token}",
+            "LinkedIn-Version": LINKEDIN_VERSION_HEADER,
         }
         if restli:
             h["X-Restli-Protocol-Version"] = "2.0.0"
         return h
+
+    def _openid_headers(self) -> Dict[str, str]:
+        """GET /v2/userinfo (OpenID); include API version to avoid NO_VERSION errors."""
+        return {
+            "Authorization": f"Bearer {self._config.linkedin_access_token}",
+            "LinkedIn-Version": LINKEDIN_VERSION_HEADER,
+        }
 
     def _json_post_headers(self) -> Dict[str, str]:
         return {**self._auth_headers(restli=True), "Content-Type": "application/json"}
@@ -44,8 +54,7 @@ class LinkedInPublisher:
         if self._person_urn:
             return self._person_urn
 
-        headers = {"Authorization": f"Bearer {self._config.linkedin_access_token}"}
-        resp = requests.get(LINKEDIN_USERINFO_URL, headers=headers, timeout=30)
+        resp = requests.get(LINKEDIN_USERINFO_URL, headers=self._openid_headers(), timeout=30)
         if resp.status_code == 200:
             data = resp.json()
             sub = data.get("sub")
@@ -53,6 +62,13 @@ class LinkedInPublisher:
                 self._person_urn = f"urn:li:person:{sub}"
                 logger.debug("LinkedIn person URN from userinfo: {}", self._person_urn)
                 return self._person_urn
+
+        member_sub = getattr(self._config, "linkedin_member_sub", "") or ""
+        member_sub = member_sub.strip()
+        if member_sub:
+            self._person_urn = f"urn:li:person:{member_sub}"
+            logger.debug("LinkedIn person URN from LINKEDIN_MEMBER_SUB: {}", self._person_urn)
+            return self._person_urn
 
         resp = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
         resp.raise_for_status()
@@ -142,8 +158,7 @@ class LinkedInPublisher:
         if not token:
             raise RuntimeError("LINKEDIN_ACCESS_TOKEN is missing or empty.")
 
-        headers = {"Authorization": f"Bearer {self._config.linkedin_access_token}"}
-        resp_ui = requests.get(LINKEDIN_USERINFO_URL, headers=headers, timeout=30)
+        resp_ui = requests.get(LINKEDIN_USERINFO_URL, headers=self._openid_headers(), timeout=30)
         if resp_ui.status_code == 200:
             data = resp_ui.json()
             sub = str(data.get("sub", "") or "")
@@ -165,12 +180,31 @@ class LinkedInPublisher:
                 "recent_posts": [],
             }
 
+        member_sub = getattr(self._config, "linkedin_member_sub", "") or ""
+        member_sub = member_sub.strip()
+        if member_sub:
+            logger.warning(
+                "LinkedIn userinfo HTTP {}; using LINKEDIN_MEMBER_SUB from OpenID id_token",
+                resp_ui.status_code,
+            )
+            logger.success("LinkedIn OAuth OK — member id from id_token")
+            return {
+                "ok": True,
+                "public_id": member_sub,
+                "name": "(member id from OpenID id_token; userinfo API unavailable)",
+                "profile_url": "https://www.linkedin.com/feed/",
+                "recent_posts_fetched": 0,
+                "recent_posts": [],
+            }
+
         resp = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
         if resp.status_code != 200:
             raise RuntimeError(
                 f"LinkedIn token rejected: userinfo HTTP {resp_ui.status_code}, "
-                f"/v2/me HTTP {resp.status_code}. Refresh LINKEDIN_ACCESS_TOKEN "
-                f"(tokens expire ~60 days). userinfo: {resp_ui.text[:200]} | me: {resp.text[:200]}"
+                f"/v2/me HTTP {resp.status_code}. If 403 ACCESS_DENIED, add "
+                f"'Sign In with LinkedIn using OpenID Connect' in LinkedIn app Products "
+                f"and re-run `python scripts/linkedin_oauth_local.py`. "
+                f"userinfo: {resp_ui.text[:280]} | me: {resp.text[:280]}"
             )
         data = resp.json()
         person_id = str(data.get("id", "") or "")

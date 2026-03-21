@@ -9,7 +9,7 @@ jobs:
         run: |
           RESPONSE=$(curl -s -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \
             --data-urlencode 'grant_type=authorization_code' \
-                        --data-urlencode 'code=AQT3IXnzdZH-fUqUwJbfocSJShEdug6pD8CZky8XjQkH2Azyy7i78sDztfQw_nU0oAXtLqxshE8fWXMVw19vuXzoGN_Jv1NyLbM8r3PEfSTUroQA-qysDGicvGCBTeiYUWH50OGv0NVHaUVhl4Qf7Ph7Hwli4WL1LDWOhH_zhALd_G9wX26zSZTZpVKAUoDMc3OkkpnAGLUZpjMl1Kw' \
+            --data-urlencode 'code=AQTY5Os34uxKKiPkYD0o2lVa7YDUpo0jcAxr3P3deiYrf5EtsbpscVNSlknPl6QlFMaj6TUo1qpQ-qr0Lo8qFklkwhjfyCbsj211Pt4Te0-Yx9iISq4EjRftXuBsxzDoOpskMJx4cusSnla-hK9TvEZJR3rNDjKQIH19DCgLDrwXcEipoEN18SifVI-4HH_2r17YSYMsKpJmPPIarQA' \
             --data-urlencode 'redirect_uri=https://localhost' \
             --data-urlencode 'client_id=78ujj98or1kf6a' \
             --data-urlencode 'client_secret=WPL_AP1.Eja7rEVh6rXNNOc9.cFG+1A==')

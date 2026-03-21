@@ -1,0 +1,14 @@
+apscheduler
+beautifulsoup4
+chromadb
+google-generativeai
+linkedin-api
+loguru
+pandas
+python-dotenv
+pydantic
+pydantic-settings
+pytest
+python-dateutil
+requests
+tenacity

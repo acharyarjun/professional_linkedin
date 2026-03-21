@@ -1,3 +1,6 @@
+from datetime import date
+from typing import Optional
+
 from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -59,3 +62,13 @@ class AppConfig(BaseSettings):
     schedule_minute: int = Field(default=15, ge=0, le=59)
     timezone: str = "Europe/Madrid"
     dry_run: bool = False
+    # If set: row = (days since this date in TIMEZONE) mod 100 + 1 (day 1 = start date).
+    # If unset: row = (day-of-year - 1) mod 100 + 1 (does not count workflow runs).
+    calendar_sequence_start: Optional[date] = None
+
+    @field_validator("calendar_sequence_start", mode="before")
+    @classmethod
+    def _empty_calendar_sequence_start(cls, v: object) -> object:
+        if v is None or v == "":
+            return None
+        return v

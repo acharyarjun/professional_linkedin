@@ -56,6 +56,7 @@ jobs:
           SCHEDULE_HOUR=12
           SCHEDULE_MINUTE=15
           TIMEZONE=Europe/Madrid
+          CALENDAR_SEQUENCE_START=${{ vars.CALENDAR_SEQUENCE_START }}
           DRY_RUN=${{ github.event.inputs.dry_run || secrets.DRY_RUN || 'false' }}
           EOF
 

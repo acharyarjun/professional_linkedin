@@ -2,7 +2,7 @@
 
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 from typing import Optional
 
 from loguru import logger
@@ -13,6 +13,26 @@ from .linkedin_publisher import LinkedInPublisher
 from .market_researcher import MarketResearcher, ResearchItem
 from .post_generator import PostGenerator
 from .rag_engine import RAGEngine
+
+
+def calendar_slot_for_date(
+    today: date,
+    *,
+    sequence_start: Optional[date] = None,
+) -> int:
+    """Return calendar row 1–100 for `today`.
+
+    If ``sequence_start`` is set, day 1 is that calendar date and each midnight step
+    advances the row (wrapping after 100). If unset, uses day-of-year mapped to
+    1..100 — this does **not** depend on how many times the workflow ran.
+    """
+    if sequence_start is not None:
+        delta = (today - sequence_start).days
+        if delta < 0:
+            return 1
+        return (delta % 100) + 1
+    doy = int(today.timetuple().tm_yday)
+    return (doy - 1) % 100 + 1
 
 
 class IndustrialAIOrchestrator:
@@ -27,9 +47,11 @@ class IndustrialAIOrchestrator:
 
     def _calendar_day_from_today(self) -> int:
         tz = ZoneInfo(self._config.timezone)
-        now = datetime.now(tz)
-        doy = int(now.timetuple().tm_yday)
-        return (doy - 1) % 100 + 1
+        today = datetime.now(tz).date()
+        return calendar_slot_for_date(
+            today,
+            sequence_start=self._config.calendar_sequence_start,
+        )
 
     def _format_insights_for_prompt(self, items: list[ResearchItem]) -> str:
         lines: list[str] = []

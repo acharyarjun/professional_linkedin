@@ -59,6 +59,7 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 | `POST_CALENDAR_PATH` | CSV calendar (`data/post_calendar.csv`) |
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | Local cron time |
 | `TIMEZONE` | IANA zone (default `Europe/Madrid`) |
+| `CALENDAR_SEQUENCE_START` | Optional `YYYY-MM-DD`: day 1 of the CSV is this date; each following day uses the next row (wraps at 100). If unset, the row follows **day-of-year** (not run count). In GitHub Actions, set repo variable `CALENDAR_SEQUENCE_START`. |
 | `DRY_RUN` | `true` to skip publishing |
 
 ## Test LinkedIn (no Gemini key)

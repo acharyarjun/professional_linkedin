@@ -1,4 +1,7 @@
+# Secrets and local overrides — never commit (not pushed to GitHub)
 .env
+.env.local
+.env.*.local
 .venv/
 venv/
 __pycache__/

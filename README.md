@@ -45,6 +45,8 @@ pip install -r requirements.txt
 
 Copy `.env.example` to `.env` and fill in API keys and credentials.
 
+The **`.env` file is gitignored** and will not be committed or pushed; only **`.env.example`** (placeholders) belongs in the repository. If you ever ran `git add .env` by mistake, run `git rm --cached .env` and keep secrets only locally.
+
 ## Configuration
 
 | Variable | Purpose |
@@ -56,6 +58,16 @@ Copy `.env.example` to `.env` and fill in API keys and credentials.
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | Local cron time |
 | `TIMEZONE` | IANA zone (default `Europe/Madrid`) |
 | `DRY_RUN` | `true` to skip publishing |
+
+## Test LinkedIn (no Gemini key)
+
+After `LINKEDIN_EMAIL` and `LINKEDIN_PASSWORD` are set in `.env`, verify login and read-only access (profile URL + recent post handles):
+
+```bash
+python main.py --test-linkedin
+```
+
+This does **not** publish anything. If LinkedIn returns a challenge or blocks automation, update your password, approve the login in your email/app, or delete cached cookies for `linkedin-api` (see that library’s cookie storage) and retry.
 
 ## Usage
 

@@ -106,8 +106,7 @@ def main() -> None:
         "response_type": "code",
         "client_id": client_id,
         "redirect_uri": REDIRECT_URI,
-        "scope": "w_member_social",
-        "state": "professional_linkedin_oauth",
+        "scope": "openid profile w_member_social",        "state": "professional_linkedin_oauth",
     }
     auth_url = (
         "https://www.linkedin.com/oauth/v2/authorization?"

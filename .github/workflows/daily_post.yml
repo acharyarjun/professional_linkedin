@@ -44,7 +44,7 @@ jobs:
           GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
           LINKEDIN_EMAIL=${{ secrets.LINKEDIN_EMAIL }}
           LINKEDIN_PASSWORD=${{ secrets.LINKEDIN_PASSWORD }}
-                    LINKEDIN_ACCESS_TOKEN=${{ secrets.LINKEDIN_ACCESS_TOKEN }}
+          LINKEDIN_ACCESS_TOKEN=${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           CHROMA_PERSIST_DIR=./data/chroma
           POST_CALENDAR_PATH=./data/post_calendar.csv
           SCHEDULE_HOUR=12
@@ -64,6 +64,7 @@ jobs:
           GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
           LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
           LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
+          LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
 
       - name: Clean up .env

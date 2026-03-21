@@ -11,8 +11,9 @@ class LinkedInCredentials(BaseSettings):
         extra="ignore",
     )
 
-    linkedin_email: str
-    linkedin_password: str
+    linkedin_email: str = ""
+    linkedin_password: str = ""
+    linkedin_access_token: str
     dry_run: bool = False
 
 
@@ -26,8 +27,9 @@ class AppConfig(BaseSettings):
     )
 
     gemini_api_key: str
-    linkedin_email: str
-    linkedin_password: str
+    linkedin_email: str = ""
+    linkedin_password: str = ""
+    linkedin_access_token: str
     chroma_persist_dir: str = "./data/chroma"
     post_calendar_path: str = "./data/post_calendar.csv"
     schedule_hour: int = Field(default=12, ge=0, le=23)

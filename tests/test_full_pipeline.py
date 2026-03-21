@@ -24,6 +24,7 @@ def pipeline_config(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> AppConfi
     monkeypatch.setenv("GEMINI_API_KEY", "test-key-not-used")
     monkeypatch.setenv("LINKEDIN_EMAIL", "test@example.com")
     monkeypatch.setenv("LINKEDIN_PASSWORD", "test-password")
+    monkeypatch.setenv("LINKEDIN_ACCESS_TOKEN", "test-oauth-token")
     monkeypatch.setenv("CHROMA_PERSIST_DIR", str(tmp_path / "chroma"))
     root = Path(__file__).resolve().parent.parent
     monkeypatch.setenv("POST_CALENDAR_PATH", str(root / "data" / "post_calendar.csv"))

@@ -1,6 +1,6 @@
 # Industrial AI Content Factory
 
-Autonomous daily LinkedIn content pipeline for **Arjun Acharya** — Port Automation & AI Engineer at **Prosertek** (Bilbao, Spain). The system researches maritime and industrial automation news, avoids near-duplicate posts via vector memory, generates PhD-level long-form posts with **Gemini 1.5 Pro**, and publishes through the unofficial **linkedin-api** client (email/password session) unless **dry-run** mode is enabled.
+Autonomous daily LinkedIn content pipeline for **Arjun Acharya** — Port Automation & AI Engineer at **Prosertek** (Bilbao, Spain). The system researches maritime and industrial automation news, avoids near-duplicate posts via vector memory, generates PhD-level long-form posts with **Gemini 1.5 Pro**, and publishes via the **official LinkedIn REST API v2** (`/v2/ugcPosts`) using an **OAuth 2.0 access token** (`w_member_social`), unless **dry-run** mode is enabled.
 
 ## Architecture
 
@@ -24,7 +24,7 @@ Autonomous daily LinkedIn content pipeline for **Arjun Acharya** — Port Automa
                                      ▼
                             ┌─────────────────┐
                             │ LinkedInPublisher│
-                            │ (normShares)    │
+                            │ (OAuth /v2)     │
                             └─────────────────┘
                                      │
                                      ▼
@@ -52,7 +52,8 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 | Variable | Purpose |
 |----------|---------|
 | `GEMINI_API_KEY` | Google AI Studio key for Gemini |
-| `LINKEDIN_EMAIL` / `LINKEDIN_PASSWORD` | LinkedIn login for `linkedin-api` |
+| `LINKEDIN_ACCESS_TOKEN` | OAuth 2.0 access token with `w_member_social` (UGC Posts) |
+| `LINKEDIN_EMAIL` / `LINKEDIN_PASSWORD` | Optional legacy placeholders (not used for publishing) |
 | `CHROMA_PERSIST_DIR` | Persistent ChromaDB directory |
 | `POST_CALENDAR_PATH` | CSV calendar (`data/post_calendar.csv`) |
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | Local cron time |
@@ -61,13 +62,13 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 
 ## Test LinkedIn (no Gemini key)
 
-After `LINKEDIN_EMAIL` and `LINKEDIN_PASSWORD` are set in `.env`, verify login and read-only access (profile URL + recent post handles):
+With `LINKEDIN_ACCESS_TOKEN` set in `.env`, verify the token against `GET https://api.linkedin.com/v2/me`:
 
 ```bash
 python main.py --test-linkedin
 ```
 
-This does **not** publish anything. If LinkedIn returns a challenge or blocks automation, update your password, approve the login in your email/app, or delete cached cookies for `linkedin-api` (see that library’s cookie storage) and retry.
+This does **not** publish anything. If the token is expired or missing scopes, refresh the OAuth token in the [LinkedIn Developer Portal](https://www.linkedin.com/developers/).
 
 ## Usage
 
@@ -113,7 +114,7 @@ professional_linkedin/
 - **Gemini AI** (`google-generativeai`) for long-form posts
 - **ChromaDB** for embeddings, post history, and market insight recall
 - **APScheduler** with cron triggers and timezone support
-- **linkedin-api** (unofficial) plus Voyager `contentcreation/normShares` for publishing
+- **LinkedIn REST API v2** (`ugcPosts`, OAuth2 bearer token) via **requests**
 - **BeautifulSoup** + **requests** for lightweight research scraping and Google News RSS
 - **Azure** themes appear in prompts and calendar topics (cloud IoT patterns)
 

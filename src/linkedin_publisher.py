@@ -1,4 +1,4 @@
-"""LinkedIn publishing via official LinkedIn API v2 with OAuth access token."""
+"""LinkedIn publishing via official LinkedIn API v2 with OAuth access token (ugcPosts)."""
 
 from __future__ import annotations
 
@@ -9,6 +9,10 @@ import requests
 from loguru import logger
 from tenacity import retry, stop_after_attempt, wait_exponential
 
+LINKEDIN_UGC_POSTS_URL = "https://api.linkedin.com/v2/ugcPosts"
+LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
+LINKEDIN_ME_URL = "https://api.linkedin.com/v2/me"
+
 
 class LinkedInAuth(Protocol):
     """Subset of config used by this publisher."""
@@ -18,36 +22,49 @@ class LinkedInAuth(Protocol):
 
 
 class LinkedInPublisher:
-    """Posts text updates to LinkedIn using the official API v2."""
+    """Posts text updates using LinkedIn UGC Posts API v2 and a Bearer token."""
 
     def __init__(self, config: LinkedInAuth) -> None:
         self._config = config
-        self._person_id: Optional[str] = None
+        self._person_urn: Optional[str] = None
 
-    def _get_person_id(self) -> str:
-        """Get LinkedIn person URN using userinfo endpoint."""
-        if self._person_id:
-            return self._person_id
+    def _bearer_headers(self, *, restli: bool = True) -> Dict[str, str]:
+        h: Dict[str, str] = {
+            "Authorization": f"Bearer {self._config.linkedin_access_token}",
+            "Content-Type": "application/json",
+        }
+        if restli:
+            h["X-Restli-Protocol-Version"] = "2.0.0"
+        return h
+
+    def _get_person_urn(self) -> str:
+        """Resolve `urn:li:person:{id}` for ugcPosts (OpenID userinfo `sub` first, else /v2/me)."""
+        if self._person_urn:
+            return self._person_urn
 
         headers = {"Authorization": f"Bearer {self._config.linkedin_access_token}"}
-        resp = requests.get("https://api.linkedin.com/v2/userinfo", headers=headers, timeout=30)
-        
-        if resp.status_code != 200:
-            raise RuntimeError(f"Failed to fetch LinkedIn userinfo: {resp.status_code} {resp.text[:300]}")
-        
+        resp = requests.get(LINKEDIN_USERINFO_URL, headers=headers, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            sub = data.get("sub")
+            if sub:
+                self._person_urn = f"urn:li:person:{sub}"
+                logger.debug("LinkedIn person URN from userinfo: {}", self._person_urn)
+                return self._person_urn
+
+        resp = requests.get(LINKEDIN_ME_URL, headers=self._bearer_headers(restli=True), timeout=30)
+        resp.raise_for_status()
         data = resp.json()
-        sub = data.get("sub")
-        if not sub:
-            raise RuntimeError("LinkedIn userinfo did not return 'sub' field")
-        
-        self._person_id = f"urn:li:person:{sub}"
-        logger.debug("LinkedIn person_id: {}", self._person_id)
-        return self._person_id
+        person_id = data.get("id")
+        if not person_id:
+            raise RuntimeError(f"Could not read person id from /v2/me: {data}")
+        self._person_urn = f"urn:li:person:{person_id}"
+        return self._person_urn
 
     def publish_post(self, text: str) -> Dict[str, Any]:
-        """Publish text to LinkedIn; respects dry-run mode."""
+        """Publish `text` to the member profile; respects dry-run mode."""
         if self._config.dry_run:
-            logger.info("[DRY RUN] Would publish LinkedIn post:\n{}", text)
+            logger.info("[DRY RUN] Would publish LinkedIn post via /v2/ugcPosts:\n{}", text)
             return {
                 "dry_run": True,
                 "post_id": "dry-run",
@@ -55,10 +72,16 @@ class LinkedInPublisher:
                 "text_length": len(text),
             }
 
-        person_id = self._get_person_id()
+        token = (self._config.linkedin_access_token or "").strip()
+        if not token:
+            raise RuntimeError(
+                "LINKEDIN_ACCESS_TOKEN is missing or empty. "
+                "Set it in .env or GitHub Actions secrets."
+            )
 
-        payload = {
-            "author": person_id,
+        author = self._get_person_urn()
+        payload: Dict[str, Any] = {
+            "author": author,
             "lifecycleState": "PUBLISHED",
             "specificContent": {
                 "com.linkedin.ugc.ShareContent": {
@@ -69,45 +92,95 @@ class LinkedInPublisher:
             "visibility": {"com.linkedin.ugc.MemberNetworkVisibility": "PUBLIC"},
         }
 
-        headers = {
-            "Authorization": f"Bearer {self._config.linkedin_access_token}",
-            "Content-Type": "application/json",
-            "X-Restli-Protocol-Version": "2.0.0",
-        }
-
         @retry(
-            stop=stop_after_attempt(3),
-            wait=wait_exponential(multiplier=1, min=4, max=60),
+            stop=stop_after_attempt(4),
+            wait=wait_exponential(multiplier=1, min=4, max=120),
             reraise=True,
         )
         def _post() -> Dict[str, Any]:
-            resp = requests.post(
-                "https://api.linkedin.com/v2/ugcPosts",
-                headers=headers,
-                json=payload,
-                timeout=30,
+            res = requests.post(
+                LINKEDIN_UGC_POSTS_URL,
+                headers=self._bearer_headers(restli=True),
+                data=json.dumps(payload),
+                timeout=60,
             )
-
-            if resp.status_code not in (200, 201):
-                raise RuntimeError(f"LinkedIn post failed: HTTP {resp.status_code} — {resp.text[:500]}")
-
-            data = resp.json()
-            post_id = data.get("id", "unknown")
-            url = f"https://www.linkedin.com/feed/update/{post_id}" if post_id != "unknown" else "https://www.linkedin.com/feed/"
-
-            logger.success("Published LinkedIn post id={}", post_id)
-            return {"post_id": post_id, "url": url, "raw": data}
+            if res.status_code not in (200, 201):
+                raise RuntimeError(
+                    f"LinkedIn post failed: HTTP {res.status_code} — {res.text[:1200]}"
+                )
+            try:
+                data = res.json()
+            except json.JSONDecodeError:
+                data = {}
+            urn = data.get("id", "") or res.headers.get("x-restli-id", "") or ""
+            url = "https://www.linkedin.com/feed/"
+            if "urn:li:activity:" in urn:
+                aid = urn.split("urn:li:activity:", 1)[-1].strip()
+                url = f"https://www.linkedin.com/feed/update/urn:li:activity:{aid}"
+            elif "urn:li:share:" in urn:
+                url = f"https://www.linkedin.com/feed/update/{urn}"
+            logger.success("Published LinkedIn post id={}", urn or "unknown")
+            return {"post_id": urn or "unknown", "url": url, "raw": data}
 
         return _post()
 
-    def test_connection(self) -> Dict[str, Any]:
-        """Test the access token and get profile info."""
+    def get_recent_posts(self, count: int = 5) -> List[Dict[str, Any]]:
+        """Member feed listing requires extra APIs/scopes; not implemented."""
+        logger.debug("get_recent_posts: skipped; count={}", count)
+        return []
+
+    def test_connection(self, fetch_posts: int = 3) -> Dict[str, Any]:
+        """
+        Verify OAuth token (OpenID userinfo, else /v2/me). Does not publish.
+
+        Use this to verify `LINKEDIN_ACCESS_TOKEN` before running the pipeline.
+        """
+        _ = fetch_posts
+        token = (self._config.linkedin_access_token or "").strip()
+        if not token:
+            raise RuntimeError("LINKEDIN_ACCESS_TOKEN is missing or empty.")
+
         headers = {"Authorization": f"Bearer {self._config.linkedin_access_token}"}
-        resp = requests.get("https://api.linkedin.com/v2/userinfo", headers=headers, timeout=30)
+        resp = requests.get(LINKEDIN_USERINFO_URL, headers=headers, timeout=30)
+        if resp.status_code == 200:
+            data = resp.json()
+            sub = str(data.get("sub", "") or "")
+            name = (data.get("name") or "").strip()
+            if not name:
+                name = (
+                    f"{data.get('given_name') or ''} {data.get('family_name') or ''}".strip()
+                )
+            if not name:
+                name = "(name not in userinfo)"
+            profile_url = "https://www.linkedin.com/feed/"
+            logger.success("LinkedIn OAuth OK — {}", name)
+            return {
+                "ok": True,
+                "public_id": sub,
+                "name": name,
+                "profile_url": profile_url,
+                "recent_posts_fetched": 0,
+                "recent_posts": [],
+            }
 
-        if resp.status_code != 200:
-            return {"ok": False, "error": f"HTTP {resp.status_code}: {resp.text[:300]}"}
-
+        resp = requests.get(LINKEDIN_ME_URL, headers=self._bearer_headers(restli=True), timeout=30)
+        resp.raise_for_status()
         data = resp.json()
-        logger.success("LinkedIn connection OK — sub={}", data.get("sub"))
-        return {"ok": True, "data": data}
+        person_id = str(data.get("id", "") or "")
+        first = str(data.get("localizedFirstName", "") or "")
+        last = str(data.get("localizedLastName", "") or "")
+        vanity = data.get("vanityName")
+        slug = vanity if isinstance(vanity, str) and vanity.strip() else person_id
+        name = f"{first} {last}".strip() or "(name not in /v2/me)"
+        profile_url = (
+            f"https://www.linkedin.com/in/{slug}/" if slug else "https://www.linkedin.com/feed/"
+        )
+        logger.success("LinkedIn OAuth OK — {} ({})", name, profile_url)
+        return {
+            "ok": True,
+            "public_id": str(slug),
+            "name": name,
+            "profile_url": profile_url,
+            "recent_posts_fetched": 0,
+            "recent_posts": [],
+        }

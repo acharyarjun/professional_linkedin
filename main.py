@@ -18,13 +18,11 @@ def main() -> None:
     parser.add_argument(
         "--test-linkedin",
         action="store_true",
-        help="Verify LinkedIn login and fetch profile + recent posts (no Gemini key needed)",
+        help="Verify LinkedIn OAuth (GET /v2/me) using LINKEDIN_ACCESS_TOKEN (no Gemini key needed)",
     )
     args = parser.parse_args()
 
     if args.test_linkedin:
-        from linkedin_api.client import ChallengeException, UnauthorizedException
-
         from src.config import LinkedInCredentials
         from src.linkedin_publisher import LinkedInPublisher
 
@@ -32,26 +30,14 @@ def main() -> None:
             result = LinkedInPublisher(LinkedInCredentials()).test_connection()
         except ValidationError:
             print(
-                "Missing LinkedIn credentials. Copy .env.example to .env and set "
-                "LINKEDIN_EMAIL and LINKEDIN_PASSWORD.",
+                "Missing LinkedIn settings. Copy .env.example to .env and set "
+                "LINKEDIN_ACCESS_TOKEN (OAuth).",
                 file=sys.stderr,
             )
             sys.exit(1)
-        except ChallengeException:
-            print(
-                "LinkedIn returned a security challenge (CAPTCHA, 2FA, or unusual login). "
-                "Open linkedin.com in a browser, complete verification, then retry. "
-                "If it persists, the unofficial API may be blocked for this account.",
-                file=sys.stderr,
-            )
-            sys.exit(2)
-        except UnauthorizedException:
-            print(
-                "LinkedIn login failed (wrong password or expired session). "
-                "Check LINKEDIN_EMAIL and LINKEDIN_PASSWORD in .env.",
-                file=sys.stderr,
-            )
-            sys.exit(3)
+        except Exception as exc:
+            print(f"LinkedIn API error: {exc}", file=sys.stderr)
+            sys.exit(1)
         print("LinkedIn connection test succeeded.")
         print(f"  Profile: {result['name']}")
         print(f"  URL:     {result['profile_url']}")

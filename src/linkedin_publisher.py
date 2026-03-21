@@ -28,14 +28,16 @@ class LinkedInPublisher:
         self._config = config
         self._person_urn: Optional[str] = None
 
-    def _bearer_headers(self, *, restli: bool = True) -> Dict[str, str]:
+    def _auth_headers(self, *, restli: bool = True) -> Dict[str, str]:
         h: Dict[str, str] = {
             "Authorization": f"Bearer {self._config.linkedin_access_token}",
-            "Content-Type": "application/json",
         }
         if restli:
             h["X-Restli-Protocol-Version"] = "2.0.0"
         return h
+
+    def _json_post_headers(self) -> Dict[str, str]:
+        return {**self._auth_headers(restli=True), "Content-Type": "application/json"}
 
     def _get_person_urn(self) -> str:
         """Resolve `urn:li:person:{id}` for ugcPosts (OpenID userinfo `sub` first, else /v2/me)."""
@@ -52,7 +54,7 @@ class LinkedInPublisher:
                 logger.debug("LinkedIn person URN from userinfo: {}", self._person_urn)
                 return self._person_urn
 
-        resp = requests.get(LINKEDIN_ME_URL, headers=self._bearer_headers(restli=True), timeout=30)
+        resp = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
         resp.raise_for_status()
         data = resp.json()
         person_id = data.get("id")
@@ -100,7 +102,7 @@ class LinkedInPublisher:
         def _post() -> Dict[str, Any]:
             res = requests.post(
                 LINKEDIN_UGC_POSTS_URL,
-                headers=self._bearer_headers(restli=True),
+                headers=self._json_post_headers(),
                 data=json.dumps(payload),
                 timeout=60,
             )
@@ -163,7 +165,7 @@ class LinkedInPublisher:
                 "recent_posts": [],
             }
 
-        resp = requests.get(LINKEDIN_ME_URL, headers=self._bearer_headers(restli=True), timeout=30)
+        resp = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
         resp.raise_for_status()
         data = resp.json()
         person_id = str(data.get("id", "") or "")

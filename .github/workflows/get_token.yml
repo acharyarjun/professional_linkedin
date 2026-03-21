@@ -1,0 +1,19 @@
+name: Get LinkedIn Token
+on:
+  workflow_dispatch:
+jobs:
+  exchange:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Exchange auth code for access token
+        run: |
+          RESPONSE=$(curl -s -X POST https://www.linkedin.com/oauth/v2/accessToken \
+            -H 'Content-Type: application/x-www-form-urlencoded' \
+            -d 'grant_type=authorization_code' \
+            -d 'code=AQQziG--U4rFmJ9QvWqxN5hB3Zox7PIe9lUVVxUn1ltm8V3rg7JKJCgNS3VazkI8O8a9n5L1i6f9sE2ggVoyFWSWt31ZNxqlxepe2cHqmZwiU7C0Zv5ZJEBHihnQSJqBRK85_qWKNFt94ODsYpNaI-2C_tjI0tGFc9-ubL03H1_gxkI6N9SZhLZEyaEU-DKQK21gAqK-fvR3y61zNIU' \
+            -d 'redirect_uri=https%3A%2F%2Flocalhost' \
+            -d 'client_id=78ujj98or1kf6a' \
+            -d 'client_secret=WPL_AP1.Eja7rEVh6rXNNOc9.cFG+1A==')
+          echo "Response: $RESPONSE"
+          TOKEN=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token','NOT_FOUND'))")
+          echo "ACCESS_TOKEN=$TOKEN"

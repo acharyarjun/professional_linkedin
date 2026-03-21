@@ -14,7 +14,7 @@ from tenacity import retry, stop_after_attempt, wait_exponential
 
 from .config import AppConfig
 
-GEMINI_MODEL = "gemini-2.0-flash"
+GEMINI_MODEL = "gemini-2.5-flash"
 
 
 @dataclass(frozen=True)
@@ -29,7 +29,7 @@ class CalendarTopic:
 
 
 class PostGenerator:
-    """Generates PhD-level LinkedIn posts using Gemini 1.5 Pro."""
+    """Generates PhD-level LinkedIn posts using the Gemini API."""
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config

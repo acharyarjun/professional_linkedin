@@ -6,7 +6,8 @@ import sys
 from dotenv import load_dotenv
 from pydantic import ValidationError
 
-load_dotenv()
+# `.env` should win over a stale GEMINI_API_KEY in the OS/user environment (python-dotenv default does not override).
+load_dotenv(override=True)
 
 
 def main() -> None:

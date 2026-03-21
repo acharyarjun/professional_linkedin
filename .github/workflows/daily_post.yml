@@ -1,0 +1,70 @@
+name: Daily LinkedIn Post
+
+on:
+  schedule:
+    # Runs at 11:15 UTC = 12:15 CET (UTC+1) / 13:15 CEST (UTC+2 in summer)
+    - cron: '15 11 * * *'
+  workflow_dispatch:
+    inputs:
+      day_number:
+        description: 'Specific day number to post (1-100, leave empty for auto)'
+        required: false
+        default: ''
+      dry_run:
+        description: 'Dry run - generate but do not publish'
+        required: false
+        default: 'false'
+        type: choice
+        options:
+          - 'false'
+          - 'true'
+
+jobs:
+  post:
+    name: Generate and Publish Post
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env file from GitHub Secrets
+        run: |
+          cat > .env << EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          LINKEDIN_EMAIL=${{ secrets.LINKEDIN_EMAIL }}
+          LINKEDIN_PASSWORD=${{ secrets.LINKEDIN_PASSWORD }}
+          CHROMA_PERSIST_DIR=./data/chroma
+          POST_CALENDAR_PATH=./data/post_calendar.csv
+          SCHEDULE_HOUR=12
+          SCHEDULE_MINUTE=15
+          TIMEZONE=Europe/Madrid
+          DRY_RUN=${{ github.event.inputs.dry_run || secrets.DRY_RUN || 'false' }}
+          EOF
+
+      - name: Run post pipeline
+        run: |
+          if [ -n "${{ github.event.inputs.day_number }}" ]; then
+            python main.py --run-now --day ${{ github.event.inputs.day_number }}
+          else
+            python main.py --run-now
+          fi
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          LINKEDIN_EMAIL: ${{ secrets.LINKEDIN_EMAIL }}
+          LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
+          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+      - name: Clean up .env
+        if: always()
+        run: rm -f .env

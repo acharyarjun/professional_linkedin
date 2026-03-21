@@ -72,7 +72,8 @@ jobs:
           LINKEDIN_PASSWORD: ${{ secrets.LINKEDIN_PASSWORD }}
           LINKEDIN_ACCESS_TOKEN: ${{ secrets.LINKEDIN_ACCESS_TOKEN }}
           LINKEDIN_MEMBER_SUB: ${{ secrets.LINKEDIN_MEMBER_SUB }}
-          DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+          # Must match .env above: scheduled runs use secrets.DRY_RUN (omit or set false for real posts).
+          DRY_RUN: ${{ github.event.inputs.dry_run || secrets.DRY_RUN || 'false' }}
 
       - name: Clean up .env
         if: always()

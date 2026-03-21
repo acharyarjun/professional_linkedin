@@ -103,7 +103,8 @@ professional_linkedin/
 │   ├── scheduler.py
 │   └── orchestrator.py
 └── tests/
-    └── test_post_generator.py
+    ├── test_post_generator.py
+    └── test_full_pipeline.py
 ```
 
 ## Tech stack
@@ -118,9 +119,28 @@ professional_linkedin/
 
 ## Tests
 
+**Unit + generator tests:**
+
 ```bash
 python -m pytest tests/ -v
 ```
+
+**Full pipeline (orchestrator) without real Gemini or LinkedIn:**
+
+```bash
+python -m pytest tests/test_full_pipeline.py -v
+```
+
+These tests mock `PostGenerator.generate_post` and stub market research so Chroma + dry-run publish run end-to-end.
+
+**Live smoke test** (real Gemini + HTTP research + Chroma; LinkedIn skipped if `--dry-run`):
+
+```bash
+# Requires a valid GEMINI_API_KEY and LinkedIn credentials in .env
+python main.py --run-now --dry-run --day 1
+```
+
+If you see `API_KEY_INVALID`, create a new key in [Google AI Studio](https://aistudio.google.com/) and set `GEMINI_API_KEY` in `.env`.
 
 ## License
 

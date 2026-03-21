@@ -53,6 +53,7 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 |----------|---------|
 | `GEMINI_API_KEY` | Google AI Studio key for Gemini |
 | `LINKEDIN_ACCESS_TOKEN` | OAuth 2.0 access token with `w_member_social` (UGC Posts) |
+| `LINKEDIN_CLIENT_ID` / `LINKEDIN_CLIENT_SECRET` | Only needed to **refresh** the token locally (see script below) |
 | `LINKEDIN_EMAIL` / `LINKEDIN_PASSWORD` | Optional legacy placeholders (not used for publishing) |
 | `CHROMA_PERSIST_DIR` | Persistent ChromaDB directory |
 | `POST_CALENDAR_PATH` | CSV calendar (`data/post_calendar.csv`) |
@@ -69,6 +70,19 @@ python main.py --test-linkedin
 ```
 
 This does **not** publish anything. If the token is expired or missing scopes, refresh the OAuth token in the [LinkedIn Developer Portal](https://www.linkedin.com/developers/).
+
+### Refresh `LINKEDIN_ACCESS_TOKEN` locally (browser + terminal)
+
+1. In the LinkedIn app **Auth** tab, add this **Authorized redirect URL** (exactly):  
+   `http://127.0.0.1:8765/oauth/callback`
+2. Put **`LINKEDIN_CLIENT_SECRET`** (and optionally `LINKEDIN_CLIENT_ID`) in `.env`.
+3. Run:
+
+```bash
+python scripts/linkedin_oauth_local.py
+```
+
+Sign in when the browser opens, click **Allow**, and the script will exchange the code and **update `LINKEDIN_ACCESS_TOKEN` in `.env`**.
 
 ## Usage
 
@@ -103,6 +117,8 @@ professional_linkedin/
 │   ├── linkedin_publisher.py
 │   ├── scheduler.py
 │   └── orchestrator.py
+├── scripts/
+│   └── linkedin_oauth_local.py
 └── tests/
     ├── test_post_generator.py
     └── test_full_pipeline.py

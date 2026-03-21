@@ -1,17 +1,28 @@
 name: Get LinkedIn Token
+
 on:
   workflow_dispatch:
+    inputs:
+      authorization_code:
+        description: "Paste the code query param from the OAuth redirect (one-time)"
+        required: true
+        type: string
+
 jobs:
   exchange:
     runs-on: ubuntu-latest
     steps:
       - name: Exchange auth code for access token
+        env:
+          CODE: ${{ github.event.inputs.authorization_code }}
+          CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
+          CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
         run: |
-          RESPONSE=$(curl -s -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \
+          RESPONSE=$(curl -s -S -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \
             --data-urlencode 'grant_type=authorization_code' \
-            --data-urlencode 'code=AQRKatvkMr7714NdnBx8uGEBl5vJ0Zu7oiooq6kzPf5vq_4_MW6MYZMHEJq-dkITpA0Ih7lmmpcO6X_lg6vSv9BaNtU1YhvufQee__FXCgDfNs1OlffVuWK4g5IhNZepeipRptQfsFYhRvedVmK5sYjBHi_3tfz60IdVZgqIzr8Vk4ik9CaTt0XHsY-s-GBflgYdyYrNrtXW1CG1KD4' \            --data-urlencode 'redirect_uri=https://localhost' \
-            --data-urlencode 'client_id=78ujj98or1kf6a' \
-            --data-urlencode 'client_secret=WPL_AP1.Eja7rEVh6rXNNOc9.cFG+1A==')
-          echo "Response: $RESPONSE"
-          TOKEN=$(echo $RESPONSE | python3 -c "import sys,json; print(json.load(sys.stdin).get('access_token','NOT_FOUND'))")
-          echo "ACCESS_TOKEN=$TOKEN"
+            --data-urlencode "code=${CODE}" \
+            --data-urlencode 'redirect_uri=https://localhost' \
+            --data-urlencode "client_id=${CLIENT_ID}" \
+            --data-urlencode "client_secret=${CLIENT_SECRET}")
+          echo "Raw response: $RESPONSE"
+          echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print('access_token:', d.get('access_token','NOT_FOUND'))"

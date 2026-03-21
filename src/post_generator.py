@@ -29,7 +29,7 @@ class CalendarTopic:
 
 
 class PostGenerator:
-    """Generates PhD-level LinkedIn posts using the Gemini API."""
+    """Generates LinkedIn posts in a NotebookLM-style infographic digest (structured text)."""
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
@@ -87,17 +87,33 @@ class PostGenerator:
             "Azure applied to industrial AI, Coursera AI/ML coursework, and the informes.prosertek.com "
             "web platform.\n\n"
             "Tone: rigorous, reflective, practitioner-scholar — comparable to a strong PhD "
-            "industrial engineer explaining field experience. No hype, no emojis, no bullet lists "
-            "unless essential. Avoid naming yourself in third person.\n\n"
+            "industrial engineer explaining field experience. No hype, no emojis. Avoid naming "
+            "yourself in third person.\n\n"
+            "Output format — NotebookLM-style infographic digest (plain text only; no images):\n"
+            "Design the post like a one-slide infographic or briefing card: dense but scannable, "
+            "with clear labeled blocks.\n"
+            "- Line 1: a single punchy hook (from the given hook line), no label.\n"
+            "- Blank line.\n"
+            "- Then 4–6 labeled sections. Each section starts with a ONE-LINE header in ALL CAPS "
+            "(3–6 words), e.g. CONTEXT / FIELD SIGNAL / TECHNICAL CORE / WHY IT MATTERS / "
+            "WHAT TO WATCH / BOTTOM LINE — pick labels that fit the theme.\n"
+            "- After each header: 1–3 short lines (max ~90 characters per line). You may use "
+            "lines starting with \"• \" for micro-bullets (at most 6 bullet lines in the whole post).\n"
+            "- Keep one idea per section; avoid long prose paragraphs.\n"
+            "- Blank line between sections.\n"
+            "- One short closing line with CTA (no ALL CAPS header on this line).\n"
+            "- Blank line, then exactly five hashtags on one line.\n"
+            "- Do not use markdown (**bold**), numbered lists, or tables. No URLs.\n\n"
             "Hard constraints:\n"
             "- Length: 1200–1800 characters inclusive (count carefully).\n"
             "- Open with a concise personal or site hook tied to the given hook line.\n"
-            "- Deliver technical depth aligned with the technical_angle.\n"
+            "- Deliver technical depth aligned with the technical_angle (especially under TECHNICAL CORE "
+            "or equivalent).\n"
             "- Weave in at least one concrete signal from the market insights block when it is non-empty "
-            "(paraphrase; do not paste URLs).\n"
+            "(paraphrase; place it under FIELD SIGNAL or CONTEXT).\n"
             "- Close with a clear call to action (discussion, reflection, or follow).\n"
-            "- End with exactly five relevant hashtags on one line, space-separated, each starting with #. "
-            "Prefer a mix from the suggested hashtags plus topical ones.\n"
+            "- After the CTA, output one blank line, then exactly five hashtags on a single line, "
+            "space-separated, each starting with #. Prefer a mix from the suggested hashtags plus topical ones.\n"
             "- Do not fabricate proprietary data; stay plausible for a Prosertek field engineer.\n"
         )
 
@@ -116,7 +132,8 @@ class PostGenerator:
             "--- Market & news context (may be partial) ---\n"
             f"{market_insights.strip() or '(no external items today — rely on field expertise)'}\n"
             "---\n\n"
-            "Write the LinkedIn post now. Output only the post text, no title line or preamble."
+            "Write the LinkedIn post now in NotebookLM infographic-digest form (ALL CAPS section "
+            "headers, tight lines). Output only the post text, no title line or preamble."
         )
 
     @retry(
@@ -151,6 +168,14 @@ class PostGenerator:
             return text[: max_chars - 1].rstrip() + "…"
         return text
 
+    def _normalize_linkedin_format(self, text: str) -> str:
+        """Collapse excessive blank lines; trim lines; keep double newlines for paragraph breaks."""
+        t = text.strip()
+        t = re.sub(r"\r\n", "\n", t)
+        t = re.sub(r"\n{3,}", "\n\n", t)
+        lines = [ln.rstrip() for ln in t.split("\n")]
+        return "\n".join(lines).strip()
+
     def generate_post(self, topic: CalendarTopic, market_insights: str = "") -> str:
         """Generate a single post for `topic`, optionally enriched with `market_insights` text."""
         user_prompt = self._build_user_prompt(topic, market_insights)
@@ -160,18 +185,20 @@ class PostGenerator:
             expand_prompt = (
                 user_prompt
                 + "\n\nThe previous draft was too short. Rewrite to 1200–1800 characters "
-                "with deeper technical reasoning and a stronger closing CTA. Output only the post."
+                "with deeper technical reasoning and a stronger closing CTA. "
+                "Keep the NotebookLM infographic layout (ALL CAPS section headers, blank lines between "
+                "sections). Output only the post."
             )
             cleaned = self._generate_raw(expand_prompt).strip()
         if self._count_hashtags(cleaned) < 5:
             expand_prompt = (
                 user_prompt
-                + "\n\nEnsure exactly five hashtags at the end, one line, space-separated. "
-                "Output only the full post."
+                + "\n\nEnsure exactly five hashtags on the last line after a blank line; "
+                "space-separated. Preserve the infographic section structure. Output only the full post."
             )
             cleaned = self._generate_raw(expand_prompt).strip()
         if len(cleaned) > 1800:
             cleaned = self._trim_to_length(cleaned, 1200, 1800)
         if len(cleaned) < 1200:
             logger.warning("Post still below 1200 chars after expansion; accepting best effort")
-        return cleaned
+        return self._normalize_linkedin_format(cleaned)

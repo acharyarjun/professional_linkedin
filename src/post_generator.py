@@ -19,7 +19,7 @@ GEMINI_MODEL = "gemini-2.5-flash"
 
 @dataclass(frozen=True)
 class CalendarTopic:
-    """One row from the 100-day post calendar."""
+    """One row from the post calendar CSV."""
 
     day: int
     theme: str
@@ -65,7 +65,7 @@ class PostGenerator:
         return topics
 
     def get_topic_for_day(self, day_number: int) -> CalendarTopic:
-        """Return the calendar row for `day_number` in 1..100 (wraps if needed)."""
+        """Return the calendar row for `day_number` (wraps to loaded calendar length)."""
         if not self._calendar:
             raise ValueError("Calendar is empty")
         n = ((int(day_number) - 1) % len(self._calendar)) + 1

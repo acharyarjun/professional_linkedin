@@ -11,7 +11,7 @@ on:
   workflow_dispatch:
     inputs:
       day_number:
-        description: 'Specific day number to post (1-100, leave empty for auto)'
+        description: 'Specific day number to post (1-500, leave empty for auto)'
         required: false
         default: ''
       dry_run:

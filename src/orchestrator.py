@@ -19,20 +19,24 @@ def calendar_slot_for_date(
     today: date,
     *,
     sequence_start: Optional[date] = None,
+    cycle_length: int = 100,
 ) -> int:
-    """Return calendar row 1–100 for `today`.
+    """Return calendar row ``1..cycle_length`` for ``today``.
 
     If ``sequence_start`` is set, day 1 is that calendar date and each midnight step
-    advances the row (wrapping after 100). If unset, uses day-of-year mapped to
-    1..100 — this does **not** depend on how many times the workflow ran.
+    advances the row (wrapping after ``cycle_length``). If unset, uses day-of-year
+    mapped to ``1..cycle_length`` — this does **not** depend on how many times the
+    workflow ran.
     """
+    if cycle_length < 1:
+        raise ValueError("cycle_length must be >= 1")
     if sequence_start is not None:
         delta = (today - sequence_start).days
         if delta < 0:
             return 1
-        return (delta % 100) + 1
+        return (delta % cycle_length) + 1
     doy = int(today.timetuple().tm_yday)
-    return (doy - 1) % 100 + 1
+    return (doy - 1) % cycle_length + 1
 
 
 class IndustrialAIOrchestrator:
@@ -63,12 +67,12 @@ class IndustrialAIOrchestrator:
         return "\n".join(lines)
 
     def run_daily_pipeline(self) -> None:
-        """Execute the full daily workflow using today's calendar slot (1–100 cycle)."""
+        """Execute the full daily workflow using today's calendar slot (wraps to CSV length)."""
         day = self._calendar_day_from_today()
         self._run_pipeline_for_day(day)
 
     def run_once(self, day_number: Optional[int] = None) -> None:
-        """Run the pipeline for a specific calendar day (1–100) or today's slot if None."""
+        """Run the pipeline for a specific calendar day or today's slot if None."""
         day = int(day_number) if day_number is not None else self._calendar_day_from_today()
         self._run_pipeline_for_day(day)
 

@@ -13,7 +13,7 @@ load_dotenv(override=True)
 def main() -> None:
     parser = argparse.ArgumentParser(description="Industrial AI Content Factory")
     parser.add_argument("--run-now", action="store_true", help="Run pipeline immediately")
-    parser.add_argument("--day", type=int, help="Specific day number to generate (1-100)")
+    parser.add_argument("--day", type=int, help="Calendar day index (1..N per post_calendar.csv)")
     parser.add_argument("--schedule", action="store_true", help="Start scheduler daemon")
     parser.add_argument("--dry-run", action="store_true", help="Test without posting")
     parser.add_argument(

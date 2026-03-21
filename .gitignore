@@ -1,4 +1,7 @@
 # Secrets and local overrides — never commit (not pushed to GitHub)
+# Local tests only — not pushed to GitHub
+tests/
+
 .env
 .env.local
 .env.*.local

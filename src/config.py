@@ -1,3 +1,4 @@
+from typing import Optional
 from pydantic import Field
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
@@ -12,8 +13,8 @@ class AppConfig(BaseSettings):
     )
 
     gemini_api_key: str
-    linkedin_email: str
-    linkedin_password: str
+    linkedin_email: Optional[str] = None
+    linkedin_password: Optional[str] = None
     chroma_persist_dir: str = "./data/chroma"
     post_calendar_path: str = "./data/post_calendar.csv"
     schedule_hour: int = Field(default=12, ge=0, le=23)

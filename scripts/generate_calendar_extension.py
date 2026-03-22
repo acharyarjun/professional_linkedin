@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """Append rows 101–500 to data/post_calendar.csv (run from repo root: python scripts/generate_calendar_extension.py).
 
-For a full 500-row rebuild aligned with www.prosertek.com, use `scripts/build_prosertek_calendar.py` instead.
+For a full 500-row neutral rebuild, use `scripts/build_post_calendar.py` instead.
 """
 
 from __future__ import annotations

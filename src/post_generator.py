@@ -29,7 +29,7 @@ class CalendarTopic:
 
 
 class PostGenerator:
-    """Generates LinkedIn posts in a NotebookLM-style infographic digest (structured text)."""
+    """Generates LinkedIn posts in a neutral, expert, systems-thinking voice."""
 
     def __init__(self, config: AppConfig) -> None:
         self._config = config
@@ -45,11 +45,13 @@ class PostGenerator:
         csv_path = Path(path)
         if not csv_path.is_file():
             raise FileNotFoundError(f"Post calendar not found: {csv_path}")
+
         df = pd.read_csv(csv_path)
         required = {"day", "theme", "hook", "technical_angle", "hashtags"}
         missing = required - set(df.columns)
         if missing:
             raise ValueError(f"Calendar CSV missing columns: {sorted(missing)}")
+
         topics: List[CalendarTopic] = []
         for _, row in df.iterrows():
             topics.append(
@@ -61,6 +63,7 @@ class PostGenerator:
                     hashtags=str(row["hashtags"]).strip(),
                 )
             )
+
         topics.sort(key=lambda t: t.day)
         return topics
 
@@ -68,72 +71,70 @@ class PostGenerator:
         """Return the calendar row for `day_number` (wraps to loaded calendar length)."""
         if not self._calendar:
             raise ValueError("Calendar is empty")
+
         n = ((int(day_number) - 1) % len(self._calendar)) + 1
+
         for t in self._calendar:
             if t.day == n:
                 return t
+
         raise ValueError(f"No topic for calendar day {n}")
 
     def _build_system_instructions(self) -> str:
         return (
-            "You are Arjun Acharya, Port Automation & AI Engineer based in Bilbao, Spain, "
-            "working at Prosertek. You write first-person LinkedIn thought leadership for peers "
-            "in maritime and industrial automation.\n\n"
-            "Expertise you may draw on authentically: vessel berthing systems, mooring automation, "
-            "gangway safety, bollard inspection AI, BAS monitoring, Cavotec and Trelleborg marine "
-            "solutions, Siemens / Omron / Allen-Bradley PLCs, TIA Portal, Sysmac Studio, "
-            "CX Programmer, Docklight scripting, RS485/RS422/RS232 fieldbus, VFDs, soft starters, "
-            "contactors, motor control centers, CAD and electrical diagram automation, Python and "
-            "Azure applied to industrial AI, Coursera AI/ML coursework, and the informes.prosertek.com "
-            "web platform.\n\n"
-            "Tone: rigorous, reflective, practitioner-scholar — comparable to a strong PhD "
-            "industrial engineer explaining field experience. No hype, no emojis. Avoid naming "
-            "yourself in third person.\n\n"
-            "Output format — NotebookLM-style infographic digest (plain text only; no images):\n"
-            "Design the post like a one-slide infographic or briefing card: dense but scannable, "
-            "with clear labeled blocks.\n"
-            "- Line 1: a single punchy hook (from the given hook line), no label.\n"
+            "You are a Port Automation & AI Engineer with hands-on field experience in maritime "
+            "and industrial environments. You write in first person as an independent practitioner "
+            "sharing insights with peers in port operations, automation, and engineering.\n\n"
+
+            "Your expertise includes: vessel berthing systems, mooring automation, gangway safety, "
+            "bollard inspection AI, berthing aided systems (laser docking, speed/distance measurement), "
+            "PLC-based control systems, industrial communication protocols (RS485/RS422/RS232), "
+            "motor control systems, electrical design, and applied AI in industrial environments.\n\n"
+
+            "Tone: rigorous, reflective, practitioner-scholar. Write like an experienced engineer "
+            "explaining real-world systems. No hype, no marketing language, no emojis.\n\n"
+
+            "CRITICAL BEHAVIORAL RULES:\n"
+            "- Remain vendor-neutral and solution-agnostic.\n"
+            "- Do NOT promote, endorse, or criticize any company, brand, or product.\n"
+            "- Do NOT mention employers or affiliations.\n"
+            "- Focus on engineering principles, system behavior, and operational realities.\n"
+            "- If referencing technology, describe it generically (e.g., 'PLC-based system').\n"
+            "- When referring to BAS, interpret it as Berthing Aided Systems used in port operations.\n"
+            "- Emphasize trade-offs, constraints, and failure modes.\n\n"
+
+            "Output format — NotebookLM-style infographic digest:\n"
+            "- Line 1: a single punchy hook (no label).\n"
             "- Blank line.\n"
-            "- Then 4–6 labeled sections. Each section starts with a ONE-LINE header in ALL CAPS "
-            "(3–6 words), e.g. CONTEXT / FIELD SIGNAL / TECHNICAL CORE / WHY IT MATTERS / "
-            "WHAT TO WATCH / BOTTOM LINE — pick labels that fit the theme.\n"
-            "- After each header: 1–3 short lines (max ~90 characters per line). You may use "
-            "lines starting with \"• \" for micro-bullets (at most 6 bullet lines in the whole post).\n"
-            "- Keep one idea per section; avoid long prose paragraphs.\n"
+            "- Then 4–6 sections.\n"
+            "- Each section starts with an ALL CAPS header (3–6 words).\n"
+            "- Each section contains 1–3 short lines (~90 chars max).\n"
+            "- Optional micro-bullets using '• ' (max 6 total).\n"
+            "- One idea per section.\n"
             "- Blank line between sections.\n"
-            "- One short closing line with CTA (no ALL CAPS header on this line).\n"
-            "- Blank line, then exactly five hashtags on one line.\n"
-            "- Do not use markdown (**bold**), numbered lists, or tables. No URLs.\n\n"
+            "- One short closing CTA line.\n"
+            "- Blank line, then exactly five hashtags.\n\n"
+
             "Hard constraints:\n"
-            "- Length: 1200–1800 characters inclusive (count carefully).\n"
-            "- Open with a concise personal or site hook tied to the given hook line.\n"
-            "- Deliver technical depth aligned with the technical_angle (especially under TECHNICAL CORE "
-            "or equivalent).\n"
-            "- Weave in at least one concrete signal from the market insights block when it is non-empty "
-            "(paraphrase; place it under FIELD SIGNAL or CONTEXT).\n"
-            "- Close with a clear call to action (discussion, reflection, or follow).\n"
-            "- After the CTA, output one blank line, then exactly five hashtags on a single line, "
-            "space-separated, each starting with #. Prefer a mix from the suggested hashtags plus topical ones.\n"
-            "- Do not fabricate proprietary data; stay plausible for a Prosertek field engineer.\n"
+            "- Length: 1200–1800 characters.\n"
+            "- Deliver strong technical depth aligned with the technical angle.\n"
+            "- Include at least one real-world operational insight when possible.\n"
+            "- If market context is provided, integrate it under CONTEXT or FIELD SIGNAL.\n"
+            "- Do not fabricate proprietary or unverifiable data.\n"
+            "- Final line must contain exactly five hashtags.\n"
         )
 
-    def _build_user_prompt(
-        self,
-        topic: CalendarTopic,
-        market_insights: str,
-    ) -> str:
-        suggested_tags = topic.hashtags
+    def _build_user_prompt(self, topic: CalendarTopic, market_insights: str) -> str:
         return (
             f"Calendar day: {topic.day}\n"
             f"Theme: {topic.theme}\n"
-            f"Hook to honour: {topic.hook}\n"
+            f"Hook: {topic.hook}\n"
             f"Technical angle: {topic.technical_angle}\n"
-            f"Suggested hashtags (adapt as needed): {suggested_tags}\n\n"
-            "--- Market & news context (may be partial) ---\n"
-            f"{market_insights.strip() or '(no external items today — rely on field expertise)'}\n"
+            f"Suggested hashtags: {topic.hashtags}\n\n"
+            "--- Market context ---\n"
+            f"{market_insights.strip() or '(no external context)'}\n"
             "---\n\n"
-            "Write the LinkedIn post now in NotebookLM infographic-digest form (ALL CAPS section "
-            "headers, tight lines). Output only the post text, no title line or preamble."
+            "Write the LinkedIn post in infographic digest format."
         )
 
     @retry(
@@ -143,19 +144,24 @@ class PostGenerator:
     )
     def _generate_raw(self, prompt: str) -> str:
         full_prompt = f"{self._build_system_instructions()}\n\n{prompt}"
+
         response = self._model.generate_content(
             full_prompt,
             generation_config=genai.GenerationConfig(
-                temperature=0.65,
+                temperature=0.6,
                 max_output_tokens=4096,
             ),
         )
+
         text = (getattr(response, "text", None) or "").strip()
+
         if not text and response.candidates:
             parts = response.candidates[0].content.parts
             text = "".join(getattr(p, "text", "") for p in parts).strip()
+
         if not text:
             raise RuntimeError("Gemini returned empty post text")
+
         return text
 
     def _count_hashtags(self, text: str) -> int:
@@ -164,12 +170,13 @@ class PostGenerator:
     def _trim_to_length(self, text: str, min_chars: int, max_chars: int) -> str:
         if min_chars <= len(text) <= max_chars:
             return text
+
         if len(text) > max_chars:
             return text[: max_chars - 1].rstrip() + "…"
+
         return text
 
     def _normalize_linkedin_format(self, text: str) -> str:
-        """Collapse excessive blank lines; trim lines; keep double newlines for paragraph breaks."""
         t = text.strip()
         t = re.sub(r"\r\n", "\n", t)
         t = re.sub(r"\n{3,}", "\n\n", t)
@@ -177,28 +184,25 @@ class PostGenerator:
         return "\n".join(lines).strip()
 
     def generate_post(self, topic: CalendarTopic, market_insights: str = "") -> str:
-        """Generate a single post for `topic`, optionally enriched with `market_insights` text."""
         user_prompt = self._build_user_prompt(topic, market_insights)
+
         raw = self._generate_raw(user_prompt)
         cleaned = raw.strip()
+
         if len(cleaned) < 1200:
-            expand_prompt = (
-                user_prompt
-                + "\n\nThe previous draft was too short. Rewrite to 1200–1800 characters "
-                "with deeper technical reasoning and a stronger closing CTA. "
-                "Keep the NotebookLM infographic layout (ALL CAPS section headers, blank lines between "
-                "sections). Output only the post."
-            )
-            cleaned = self._generate_raw(expand_prompt).strip()
+            cleaned = self._generate_raw(
+                user_prompt + "\n\nExpand with deeper technical reasoning."
+            ).strip()
+
         if self._count_hashtags(cleaned) < 5:
-            expand_prompt = (
-                user_prompt
-                + "\n\nEnsure exactly five hashtags on the last line after a blank line; "
-                "space-separated. Preserve the infographic section structure. Output only the full post."
-            )
-            cleaned = self._generate_raw(expand_prompt).strip()
+            cleaned = self._generate_raw(
+                user_prompt + "\n\nEnsure exactly five hashtags."
+            ).strip()
+
         if len(cleaned) > 1800:
             cleaned = self._trim_to_length(cleaned, 1200, 1800)
+
         if len(cleaned) < 1200:
-            logger.warning("Post still below 1200 chars after expansion; accepting best effort")
+            logger.warning("Post below 1200 chars; accepting best effort")
+
         return self._normalize_linkedin_format(cleaned)

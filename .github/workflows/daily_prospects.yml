@@ -1,0 +1,76 @@
+name: Daily LinkedIn Prospects
+
+on:
+  schedule:
+    # Runs every day at 08:00 UTC = 09:00 CET / 10:00 CEST
+    # (after your daily post at 06:00 UTC, so the feed is already warm)
+    - cron: '0 8 * * *'
+  workflow_dispatch:
+    inputs:
+      target_count:
+        description: 'Number of prospects to find (default: 10)'
+        required: false
+        default: '10'
+
+jobs:
+  find-prospects:
+    name: Find Daily Port Prospects
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python 3.11
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+          cache: 'pip'
+
+      - name: Install dependencies
+        run: pip install -r requirements.txt
+
+      - name: Create .env file from secrets
+        run: |
+          cat > .env << EOF
+          GEMINI_API_KEY=${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY=${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_CX=${{ secrets.GOOGLE_CX }}
+          NOTION_TOKEN=${{ secrets.NOTION_TOKEN }}
+          NOTION_PROSPECTS_DB_ID=${{ secrets.NOTION_PROSPECTS_DB_ID }}
+          PROSPECTS_FILE=data/prospects.csv
+          SEEN_FILE=data/seen_prospects.json
+          EOF
+
+      - name: Run prospect finder
+        run: python scripts/run_prospects.py
+        env:
+          GEMINI_API_KEY: ${{ secrets.GEMINI_API_KEY }}
+          GOOGLE_API_KEY: ${{ secrets.GOOGLE_API_KEY }}
+          GOOGLE_CX: ${{ secrets.GOOGLE_CX }}
+          NOTION_TOKEN: ${{ secrets.NOTION_TOKEN }}
+          NOTION_PROSPECTS_DB_ID: ${{ secrets.NOTION_PROSPECTS_DB_ID }}
+          PROSPECTS_FILE: data/prospects.csv
+          SEEN_FILE: data/seen_prospects.json
+
+      - name: Upload prospect report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: prospects-${{ github.run_id }}
+          path: data/reports/
+          retention-days: 30
+
+      - name: Commit updated prospect database
+        run: |
+          git config --global user.name "LinkedIn Prospect Bot"
+          git config --global user.email "bot@prosertek.ai"
+          git add data/prospects.csv data/seen_prospects.json data/reports/ || true
+          git diff --staged --quiet || git commit -m "chore: daily prospects $(date +%Y-%m-%d)"
+          git push || true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up .env
+        if: always()
+        run: rm -f .env

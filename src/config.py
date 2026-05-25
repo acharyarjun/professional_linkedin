@@ -1,4 +1,4 @@
-from datetime import date
+from datetime import date, datetime
 from typing import Optional
 
 from pydantic import Field, field_validator
@@ -71,4 +71,16 @@ class AppConfig(BaseSettings):
     def _empty_calendar_sequence_start(cls, v: object) -> object:
         if v is None or v == "":
             return None
-        return v
+        if isinstance(v, date):
+            return v
+        if isinstance(v, str):
+            value = v.strip()
+            try:
+                return datetime.strptime(value, "%Y-%m-%d").date()
+            except ValueError as exc:
+                raise ValueError(
+                    f"CALENDAR_SEQUENCE_START must be YYYY-MM-DD, got: {v!r}"
+                ) from exc
+        raise ValueError(
+            f"CALENDAR_SEQUENCE_START must be an ISO date string, got type: {type(v).__name__}"
+        )

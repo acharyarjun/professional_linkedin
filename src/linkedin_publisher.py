@@ -7,13 +7,21 @@ from typing import Any, Dict, List, Optional, Protocol
 
 import requests
 from loguru import logger
-from tenacity import retry, stop_after_attempt, wait_exponential
+from tenacity import retry, retry_if_exception_type, stop_after_attempt, wait_exponential
 
 LINKEDIN_UGC_POSTS_URL = "https://api.linkedin.com/v2/ugcPosts"
 LINKEDIN_USERINFO_URL = "https://api.linkedin.com/v2/userinfo"
 LINKEDIN_ME_URL = "https://api.linkedin.com/v2/me"
 # Monthly API version; requests without this can return ACCESS_DENIED *.NO_VERSION.
 LINKEDIN_VERSION_HEADER = "202411"
+
+
+class LinkedInTransientError(RuntimeError):
+    """Retryable LinkedIn API failure (e.g., 429/5xx)."""
+
+
+class LinkedInPermanentError(RuntimeError):
+    """Non-retryable LinkedIn API failure (e.g., expired/invalid token)."""
 
 
 class LinkedInAuth(Protocol):
@@ -121,8 +129,9 @@ class LinkedInPublisher:
         }
 
         @retry(
-            stop=stop_after_attempt(4),
-            wait=wait_exponential(multiplier=1, min=4, max=120),
+            retry=retry_if_exception_type(LinkedInTransientError),
+            stop=stop_after_attempt(3),
+            wait=wait_exponential(multiplier=1, min=2, max=30),
             reraise=True,
         )
         def _post() -> Dict[str, Any]:
@@ -133,8 +142,18 @@ class LinkedInPublisher:
                 timeout=60,
             )
             if res.status_code not in (200, 201):
-                raise RuntimeError(
-                    f"LinkedIn post failed: HTTP {res.status_code} — {res.text[:1200]}"
+                body = (res.text or "")[:1200]
+                if res.status_code in (401, 403):
+                    raise LinkedInPermanentError(
+                        "LinkedIn auth failed (token expired/invalid or access denied). "
+                        f"HTTP {res.status_code} — {body}"
+                    )
+                if 400 <= res.status_code < 500 and res.status_code != 429:
+                    raise LinkedInPermanentError(
+                        f"LinkedIn post rejected (non-retryable): HTTP {res.status_code} — {body}"
+                    )
+                raise LinkedInTransientError(
+                    f"LinkedIn post failed (retryable): HTTP {res.status_code} — {body}"
                 )
             try:
                 data = res.json()

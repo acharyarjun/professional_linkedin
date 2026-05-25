@@ -163,14 +163,34 @@ class MarketResearcher:
     def get_daily_insights(self) -> List[ResearchItem]:
         """Aggregate research items from configured web sources and Google News RSS."""
         collected: List[ResearchItem] = []
-        collected.extend(self._scrape_porttechnology())
-        collected.extend(self._scrape_lloydslist())
-        collected.extend(self._scrape_safety4sea())
+        source_counts: dict[str, int] = {}
+
+        pt_items = self._scrape_porttechnology()
+        source_counts["Port Technology"] = len(pt_items)
+        collected.extend(pt_items)
+
+        ll_items = self._scrape_lloydslist()
+        source_counts["Lloyd's List"] = len(ll_items)
+        collected.extend(ll_items)
+
+        s4s_items = self._scrape_safety4sea()
+        source_counts["Safety4Sea"] = len(s4s_items)
+        collected.extend(s4s_items)
+
+        google_total = 0
         for q in GOOGLE_NEWS_QUERIES:
             try:
-                collected.extend(self._fetch_google_news(q))
+                items = self._fetch_google_news(q)
+                google_total += len(items)
+                collected.extend(items)
             except Exception as exc:
                 logger.warning("Google News query {!r} failed: {}", q, exc)
+        source_counts["Google News"] = google_total
+
+        if not any(source_counts.values()):
+            logger.warning(
+                "All market research sources returned zero items; continuing with no external context"
+            )
 
         dedup: dict[str, ResearchItem] = {}
         for item in collected:

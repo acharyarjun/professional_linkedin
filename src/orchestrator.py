@@ -108,7 +108,8 @@ class IndustrialAIOrchestrator:
         try:
             duplicate = self._rag.topic_already_posted(topic.theme)
         except Exception as exc:
-            logger.warning("Duplicate check failed (continuing): {}", exc)
+            logger.exception("Duplicate check failed (stopping pipeline): {}", exc)
+            return
 
         if duplicate:
             logger.warning(
@@ -126,15 +127,15 @@ class IndustrialAIOrchestrator:
             return
 
         try:
-            self._rag.add_post(post_text, topic=topic.theme)
-        except Exception as exc:
-            logger.warning("Could not index generated post in Chroma: {}", exc)
-
-        try:
             result = self._publisher.publish_post(post_text)
         except Exception as exc:
             logger.exception("Publishing failed: {}", exc)
             return
+
+        try:
+            self._rag.add_post(post_text, topic=topic.theme)
+        except Exception as exc:
+            logger.warning("Could not index published post in Chroma: {}", exc)
 
         logger.success(
             "Pipeline complete — day={} theme={!r} chars={} result={}",

@@ -57,6 +57,9 @@ jobs:
           SCHEDULE_MINUTE=15
           TIMEZONE=Europe/Madrid
           CALENDAR_SEQUENCE_START=${{ vars.CALENDAR_SEQUENCE_START }}
+          RANDOM_PUBLISH_TWICE_WEEKLY=true
+          RANDOM_PUBLISH_DAYS_PER_WEEK=2
+          RANDOM_PUBLISH_SEED=${{ vars.RANDOM_PUBLISH_SEED || 'industrial-ai-content-factory' }}
           DRY_RUN=${{ github.event.inputs.dry_run || secrets.DRY_RUN || 'false' }}
           EOF
 

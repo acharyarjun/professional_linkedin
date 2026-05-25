@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import random
 from datetime import date, datetime
 from typing import Optional
 
@@ -49,13 +50,38 @@ class IndustrialAIOrchestrator:
         self._rag = RAGEngine(config)
         self._publisher = LinkedInPublisher(config)
 
-    def _calendar_day_from_today(self) -> int:
+    def _today_in_timezone(self) -> date:
         tz = ZoneInfo(self._config.timezone)
-        today = datetime.now(tz).date()
+        return datetime.now(tz).date()
+
+    def _calendar_day_from_today(self) -> int:
+        today = self._today_in_timezone()
         return calendar_slot_for_date(
             today,
             sequence_start=self._config.calendar_sequence_start,
         )
+
+    def _should_publish_today(self, today: date) -> bool:
+        if not self._config.random_publish_twice_weekly:
+            return True
+
+        iso = today.isocalendar()
+        week_key = f"{iso.year:04d}-W{iso.week:02d}"
+        seed = f"{self._config.random_publish_seed}:{week_key}"
+        rng = random.Random(seed)
+        selected_days = sorted(
+            rng.sample(list(range(7)), self._config.random_publish_days_per_week)
+        )
+        weekday = today.weekday()
+        should_publish = weekday in selected_days
+        logger.info(
+            "Random weekly publish policy: week={} selected_weekdays={} today_weekday={} publish_today={}",
+            week_key,
+            selected_days,
+            weekday,
+            should_publish,
+        )
+        return should_publish
 
     def _format_insights_for_prompt(self, items: list[ResearchItem]) -> str:
         lines: list[str] = []
@@ -68,12 +94,32 @@ class IndustrialAIOrchestrator:
 
     def run_daily_pipeline(self) -> None:
         """Execute the full daily workflow using today's calendar slot (wraps to CSV length)."""
-        day = self._calendar_day_from_today()
+        today = self._today_in_timezone()
+        if not self._should_publish_today(today):
+            logger.info("Skipping publish for {} due to random twice-weekly schedule", today)
+            return
+        day = calendar_slot_for_date(
+            today,
+            sequence_start=self._config.calendar_sequence_start,
+        )
         self._run_pipeline_for_day(day)
 
     def run_once(self, day_number: Optional[int] = None) -> None:
         """Run the pipeline for a specific calendar day or today's slot if None."""
-        day = int(day_number) if day_number is not None else self._calendar_day_from_today()
+        if day_number is not None:
+            day = int(day_number)
+            self._run_pipeline_for_day(day)
+            return
+
+        today = self._today_in_timezone()
+        if not self._should_publish_today(today):
+            logger.info("Skipping publish for {} due to random twice-weekly schedule", today)
+            return
+
+        day = calendar_slot_for_date(
+            today,
+            sequence_start=self._config.calendar_sequence_start,
+        )
         self._run_pipeline_for_day(day)
 
     def _run_pipeline_for_day(self, day: int) -> None:

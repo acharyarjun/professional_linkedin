@@ -61,6 +61,9 @@ class AppConfig(BaseSettings):
     schedule_hour: int = Field(default=12, ge=0, le=23)
     schedule_minute: int = Field(default=15, ge=0, le=59)
     timezone: str = "Europe/Madrid"
+    random_publish_twice_weekly: bool = False
+    random_publish_days_per_week: int = Field(default=2, ge=1, le=7)
+    random_publish_seed: str = "industrial-ai-content-factory"
     dry_run: bool = False
     # If set: row = (days since this date in TIMEZONE) mod N + 1 (day 1 = start date; N = CSV rows).
     # If unset: row = (day-of-year - 1) mod N + 1 (does not count workflow runs).

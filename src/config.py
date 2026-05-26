@@ -64,6 +64,8 @@ class AppConfig(BaseSettings):
     random_publish_twice_weekly: bool = False
     random_publish_days_per_week: int = Field(default=2, ge=1, le=7)
     random_publish_seed: str = "industrial-ai-content-factory"
+    use_publish_cursor: bool = True
+    publish_cursor_path: str = "./data/publish_cursor.json"
     dry_run: bool = False
     # If set: row = (days since this date in TIMEZONE) mod N + 1 (day 1 = start date; N = CSV rows).
     # If unset: row = (day-of-year - 1) mod N + 1 (does not count workflow runs).

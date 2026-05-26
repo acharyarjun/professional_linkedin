@@ -2,8 +2,10 @@
 
 from __future__ import annotations
 
+import json
 import random
 from datetime import date, datetime
+from pathlib import Path
 from typing import Optional
 
 from loguru import logger
@@ -61,6 +63,121 @@ class IndustrialAIOrchestrator:
             sequence_start=self._config.calendar_sequence_start,
         )
 
+    def _calendar_days(self) -> list[int]:
+        days = sorted({topic.day for topic in self._generator.calendar})
+        if not days:
+            raise ValueError("Calendar is empty")
+        return days
+
+    def _cursor_file_path(self) -> Path:
+        return Path(self._config.publish_cursor_path)
+
+    def _default_cursor_state(self) -> dict[str, object]:
+        return {
+            "schema_version": 1,
+            "next_topic_index": 1,
+            "topics_posted_lifetime": 0,
+            "last_published_date": "",
+        }
+
+    def _load_cursor_state(self) -> dict[str, object]:
+        path = self._cursor_file_path()
+        state = self._default_cursor_state()
+        if not path.exists():
+            self._save_cursor_state(state)
+            return state
+
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Cursor file unreadable; resetting cursor: {}", exc)
+            self._save_cursor_state(state)
+            return state
+
+        if not isinstance(raw, dict):
+            logger.warning("Cursor file has invalid schema; resetting cursor")
+            self._save_cursor_state(state)
+            return state
+
+        n_topics = len(self._calendar_days())
+        next_idx = raw.get("next_topic_index", 1)
+        try:
+            next_idx = int(next_idx)
+        except (TypeError, ValueError):
+            next_idx = 1
+        if next_idx < 1 or next_idx > n_topics:
+            next_idx = 1
+
+        posted_total = raw.get("topics_posted_lifetime", 0)
+        try:
+            posted_total = int(posted_total)
+        except (TypeError, ValueError):
+            posted_total = 0
+        if posted_total < 0:
+            posted_total = 0
+
+        last_date = raw.get("last_published_date", "")
+        if not isinstance(last_date, str):
+            last_date = ""
+
+        state = {
+            "schema_version": 1,
+            "next_topic_index": next_idx,
+            "topics_posted_lifetime": posted_total,
+            "last_published_date": last_date,
+        }
+        return state
+
+    def _save_cursor_state(self, state: dict[str, object]) -> None:
+        path = self._cursor_file_path()
+        path.parent.mkdir(parents=True, exist_ok=True)
+        tmp_path = path.with_suffix(path.suffix + ".tmp")
+        tmp_path.write_text(json.dumps(state, indent=2) + "\n", encoding="utf-8")
+        tmp_path.replace(path)
+
+    def _cursor_day_for_today(self, today: date) -> int:
+        if not self._config.use_publish_cursor:
+            return calendar_slot_for_date(
+                today,
+                sequence_start=self._config.calendar_sequence_start,
+            )
+
+        state = self._load_cursor_state()
+        index = int(state["next_topic_index"])
+        days = self._calendar_days()
+        day = days[index - 1]
+        logger.info(
+            "Cursor policy: next_topic_index={} calendar_day={} posted_lifetime={}",
+            index,
+            day,
+            state["topics_posted_lifetime"],
+        )
+        return day
+
+    def _advance_cursor_after_publish(self, today: date) -> None:
+        if not self._config.use_publish_cursor:
+            return
+
+        state = self._load_cursor_state()
+        days = self._calendar_days()
+        n_topics = len(days)
+        current_index = int(state["next_topic_index"])
+        next_index = (current_index % n_topics) + 1
+        posted_total = int(state["topics_posted_lifetime"]) + 1
+        updated = {
+            "schema_version": 1,
+            "next_topic_index": next_index,
+            "topics_posted_lifetime": posted_total,
+            "last_published_date": today.isoformat(),
+        }
+        self._save_cursor_state(updated)
+        logger.info(
+            "Cursor advanced: previous_index={} next_index={} last_published_date={}",
+            current_index,
+            next_index,
+            today,
+        )
+
     def _should_publish_today(self, today: date) -> bool:
         if not self._config.random_publish_twice_weekly:
             return True
@@ -98,11 +215,9 @@ class IndustrialAIOrchestrator:
         if not self._should_publish_today(today):
             logger.info("Skipping publish for {} due to random twice-weekly schedule", today)
             return
-        day = calendar_slot_for_date(
-            today,
-            sequence_start=self._config.calendar_sequence_start,
-        )
-        self._run_pipeline_for_day(day)
+        day = self._cursor_day_for_today(today)
+        if self._run_pipeline_for_day(day):
+            self._advance_cursor_after_publish(today)
 
     def run_once(self, day_number: Optional[int] = None) -> None:
         """Run the pipeline for a specific calendar day or today's slot if None."""
@@ -116,19 +231,17 @@ class IndustrialAIOrchestrator:
             logger.info("Skipping publish for {} due to random twice-weekly schedule", today)
             return
 
-        day = calendar_slot_for_date(
-            today,
-            sequence_start=self._config.calendar_sequence_start,
-        )
-        self._run_pipeline_for_day(day)
+        day = self._cursor_day_for_today(today)
+        if self._run_pipeline_for_day(day):
+            self._advance_cursor_after_publish(today)
 
-    def _run_pipeline_for_day(self, day: int) -> None:
+    def _run_pipeline_for_day(self, day: int) -> bool:
         logger.info("Starting pipeline for calendar day {}", day)
         try:
             topic = self._generator.get_topic_for_day(day)
         except Exception as exc:
             logger.exception("Failed to load topic: {}", exc)
-            return
+            return False
 
         try:
             insights = self._researcher.get_daily_insights()
@@ -155,7 +268,7 @@ class IndustrialAIOrchestrator:
             duplicate = self._rag.topic_already_posted(topic.theme)
         except Exception as exc:
             logger.exception("Duplicate check failed (stopping pipeline): {}", exc)
-            return
+            return False
 
         if duplicate:
             logger.warning(
@@ -170,13 +283,13 @@ class IndustrialAIOrchestrator:
             post_text = self._generator.generate_post(topic, market_insights=insights_text)
         except Exception as exc:
             logger.exception("Post generation failed: {}", exc)
-            return
+            return False
 
         try:
             result = self._publisher.publish_post(post_text)
         except Exception as exc:
             logger.exception("Publishing failed: {}", exc)
-            return
+            return False
 
         try:
             self._rag.add_post(post_text, topic=topic.theme)
@@ -190,3 +303,4 @@ class IndustrialAIOrchestrator:
             len(post_text),
             result,
         )
+        return True

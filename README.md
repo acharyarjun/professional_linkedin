@@ -60,6 +60,11 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 | `SCHEDULE_HOUR` / `SCHEDULE_MINUTE` | Local cron time |
 | `TIMEZONE` | IANA zone (default `Europe/Madrid`) |
 | `CALENDAR_SEQUENCE_START` | Optional `YYYY-MM-DD`: day 1 of the CSV is this date; each following day uses the next row (wraps at **N** = number of CSV rows). If unset, the row follows **day-of-year** mod **N** (not run count). In GitHub Actions, set repo variable `CALENDAR_SEQUENCE_START`. |
+| `RANDOM_PUBLISH_TWICE_WEEKLY` | `true` to allow only selected weekdays to publish (used for scheduled CI runs). |
+| `RANDOM_PUBLISH_DAYS_PER_WEEK` | Number of weekdays selected per ISO week (default `2`). |
+| `RANDOM_PUBLISH_SEED` | Seed used to deterministically sample weekdays per week. |
+| `USE_PUBLISH_CURSOR` | `true` to advance topics by successful publishes instead of calendar date. Prevents skipped topics when not posting daily. |
+| `PUBLISH_CURSOR_PATH` | Path to persistent cursor JSON (default `data/publish_cursor.json`). |
 | `DRY_RUN` | `true` to skip publishing |
 
 ## Test LinkedIn (no Gemini key)
@@ -89,7 +94,7 @@ Sign in when the browser opens, click **Allow**, and the script will exchange th
 ## Usage
 
 ```bash
-# One-off run for “today’s” slot (1–100 cycle from day-of-year)
+# One-off run for next cursor topic (or today's slot if cursor is disabled)
 python main.py --run-now
 
 # Specific calendar day (1–N)
@@ -111,6 +116,7 @@ professional_linkedin/
 ├── .env.example
 ├── data/
 │   └── post_calendar.csv
+│   └── publish_cursor.json
 ├── src/
 │   ├── config.py
 │   ├── post_generator.py

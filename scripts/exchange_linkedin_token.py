@@ -73,7 +73,7 @@ def format_token_report(data: dict[str, object]) -> str:
         "=== LinkedIn OAuth token exchange ===",
         f"access_token: {token}",
         f"expires_in: {expires_in}",
-        f"scope: {scopes or '(not returned dict returned)'}",
+        f"scope: {scopes or '(not returned)'}",
         f"LINKEDIN_MEMBER_SUB: {member_sub or '(missing — ensure openid scope)'}",
     ]
     if expires_at:
@@ -82,14 +82,23 @@ def format_token_report(data: dict[str, object]) -> str:
         [
             "",
             "Update GitHub secrets:",
-            "  gh secret set LINKEDIN_ACCESS_TOKEN --repo OWNER/REPO",
-            "  gh secret set LINKEDIN_MEMBER_SUB --repo OWNER/REPO",
-            "Or locally: python scripts/push_linkedin_secrets.py",
+            "  python scripts/push_linkedin_secrets.py",
             "",
             "LinkedIn tokens expire in ~60 days — set a calendar reminder.",
         ]
     )
     return "\n".join(lines)
+
+
+def write_json_report(data: dict[str, object], path: str) -> None:
+    id_token = data.get("id_token")
+    member_sub = ""
+    if isinstance(id_token, str):
+        member_sub = str(_decode_id_token_payload(id_token).get("sub", "") or "")
+    out = dict(data)
+    out["member_sub"] = member_sub
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(out, fh)
 
 
 def main() -> None:
@@ -98,6 +107,10 @@ def main() -> None:
     parser.add_argument("--client-id", required=True)
     parser.add_argument("--client-secret", required=True)
     parser.add_argument("--redirect-uri", default=DEFAULT_REDIRECT_URI)
+    parser.add_argument(
+        "--json-out",
+        help="Write full token response JSON (plus member_sub) to this path",
+    )
     args = parser.parse_args()
 
     data = exchange_code(
@@ -106,6 +119,8 @@ def main() -> None:
         client_secret=args.client_secret.strip(),
         redirect_uri=args.redirect_uri.strip(),
     )
+    if args.json_out:
+        write_json_report(data, args.json_out)
     print(format_token_report(data))
 
 

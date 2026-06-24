@@ -13,6 +13,9 @@ on:
 jobs:
   exchange:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      secrets: write
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
@@ -26,6 +29,7 @@ jobs:
         run: pip install requests
 
       - name: Exchange auth code for access token
+        id: exchange
         env:
           CODE: ${{ github.event.inputs.authorization_code }}
           CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
@@ -34,4 +38,56 @@ jobs:
           python scripts/exchange_linkedin_token.py \
             --code "$CODE" \
             --client-id "$CLIENT_ID" \
-            --client-secret "$CLIENT_SECRET"
+            --client-secret "$CLIENT_SECRET" \
+            --json-out /tmp/linkedin_token.json
+
+      - name: Update GitHub secrets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 << 'PY'
+          import json
+          import os
+          import subprocess
+          from datetime import datetime, timedelta, timezone
+
+          data = json.load(open("/tmp/linkedin_token.json", encoding="utf-8"))
+          token = data.get("access_token", "")
+          if not token:
+              raise SystemExit("No access_token in exchange response")
+
+          id_token = data.get("id_token", "")
+          member_sub = data.get("member_sub", "")
+          if not member_sub and id_token:
+              import base64
+              parts = id_token.split(".")
+              if len(parts) == 3:
+                  pad = "=" * (-len(parts[1]) % 4)
+                  payload = json.loads(base64.urlsafe_b64decode(parts[1] + pad))
+                  member_sub = str(payload.get("sub", "") or "")
+
+          repo = os.environ["GITHUB_REPOSITORY"]
+
+          def set_secret(name: str, value: str) -> None:
+              subprocess.run(
+                  ["gh", "secret", "set", name, "--repo", repo],
+                  input=value,
+                  text=True,
+                  check=True,
+              )
+              print(f"Updated secret: {name}")
+
+          set_secret("LINKEDIN_ACCESS_TOKEN", token)
+          if member_sub:
+              set_secret("LINKEDIN_MEMBER_SUB", member_sub)
+
+          expires_in = data.get("expires_in")
+          if expires_in is not None:
+              try:
+                  when = datetime.now(timezone.utc) + timedelta(seconds=int(expires_in))
+                  set_secret("LINKEDIN_TOKEN_EXPIRES_AT", when.strftime("%Y-%m-%dT%H:%M:%SZ"))
+              except (TypeError, ValueError):
+                  pass
+
+          print("Secrets updated. Re-run Daily LinkedIn Post workflow to verify.")
+          PY

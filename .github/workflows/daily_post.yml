@@ -32,6 +32,9 @@ jobs:
       contents: write
 
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
       - name: Decide if today should publish
         id: gate
         shell: bash
@@ -50,48 +53,17 @@ jobs:
             exit 0
           fi
 
-          seed="${{ vars.RANDOM_PUBLISH_SEED || 'industrial-ai-content-factory' }}"
-          days_per_week="2"
-          if [ -n "${{ vars.RANDOM_PUBLISH_DAYS_PER_WEEK }}" ]; then
-            days_per_week="${{ vars.RANDOM_PUBLISH_DAYS_PER_WEEK }}"
-          fi
-
-          python3 - << 'PY' >> "$GITHUB_OUTPUT"
-import datetime
-import random
-import os
-      from zoneinfo import ZoneInfo
-
-seed = os.environ.get("SCHEDULE_SEED", "industrial-ai-content-factory")
-      timezone_name = os.environ.get("SCHEDULE_TIMEZONE", "Europe/Madrid")
-try:
-    days_per_week = int(os.environ.get("DAYS_PER_WEEK", "2"))
-except ValueError:
-    days_per_week = 2
-days_per_week = max(1, min(7, days_per_week))
-
-      try:
-        tz = ZoneInfo(timezone_name)
-      except Exception:
-        tz = datetime.timezone.utc
-      today = datetime.datetime.now(tz).date()
-iso = today.isocalendar()
-week_key = f"{iso.year:04d}-W{iso.week:02d}"
-rng = random.Random(f"{seed}:{week_key}")
-selected_days = sorted(rng.sample(list(range(7)), days_per_week))
-weekday = today.weekday()
-should_publish = weekday in selected_days
-
-print(f"should_publish={'true' if should_publish else 'false'}")
-print("manual_override=false")
-print(f"selection_week={week_key}")
-print(f"selection_weekdays={','.join(str(d) for d in selected_days)}")
-print(f"today_weekday={weekday}")
-PY
+          python3 scripts/schedule_publish_gate.py >> "$GITHUB_OUTPUT"
         env:
           SCHEDULE_SEED: ${{ vars.RANDOM_PUBLISH_SEED || 'industrial-ai-content-factory' }}
           DAYS_PER_WEEK: ${{ vars.RANDOM_PUBLISH_DAYS_PER_WEEK || '2' }}
           SCHEDULE_TIMEZONE: Europe/Madrid
+
+      - name: Resolve dry run flag
+        id: dryrun
+        run: |
+          DRY="${{ github.event.inputs.dry_run || secrets.DRY_RUN || 'false' }}"
+          echo "dry_run=${DRY}" >> "$GITHUB_OUTPUT"
 
       - name: Skip publish on non-selected day
         if: steps.gate.outputs.should_publish != 'true'
@@ -100,10 +72,6 @@ PY
           echo "week=${{ steps.gate.outputs.selection_week }}"
           echo "selected_weekdays=${{ steps.gate.outputs.selection_weekdays }}"
           echo "today_weekday=${{ steps.gate.outputs.today_weekday }}"
-
-      - name: Checkout repository
-        if: steps.gate.outputs.should_publish == 'true'
-        uses: actions/checkout@v4
 
       - name: Set up Python 3.11
         if: steps.gate.outputs.should_publish == 'true'
@@ -137,8 +105,12 @@ PY
           RANDOM_PUBLISH_SEED=${{ vars.RANDOM_PUBLISH_SEED || 'industrial-ai-content-factory' }}
           USE_PUBLISH_CURSOR=true
           PUBLISH_CURSOR_PATH=./data/publish_cursor.json
-          DRY_RUN=${{ github.event.inputs.dry_run || secrets.DRY_RUN || 'false' }}
+          DRY_RUN=${{ steps.dryrun.outputs.dry_run }}
           EOF
+
+      - name: Verify LinkedIn credentials
+        if: steps.gate.outputs.should_publish == 'true' && steps.dryrun.outputs.dry_run != 'true'
+        run: python main.py --test-linkedin
 
       - name: Run post pipeline
         if: steps.gate.outputs.should_publish == 'true'
@@ -150,7 +122,7 @@ PY
           fi
 
       - name: Persist publish cursor to repository
-        if: steps.gate.outputs.should_publish == 'true' && (github.event.inputs.dry_run != 'true')
+        if: steps.gate.outputs.should_publish == 'true' && steps.dryrun.outputs.dry_run != 'true'
         run: |
           if [ ! -f data/publish_cursor.json ]; then
             echo "No cursor file to persist."

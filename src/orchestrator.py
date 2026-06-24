@@ -219,21 +219,25 @@ class IndustrialAIOrchestrator:
         if self._run_pipeline_for_day(day):
             self._advance_cursor_after_publish(today)
 
-    def run_once(self, day_number: Optional[int] = None) -> None:
-        """Run the pipeline for a specific calendar day or today's slot if None."""
+    def run_once(self, day_number: Optional[int] = None) -> bool:
+        """Run the pipeline for a specific calendar day or today's slot if None.
+
+        Returns True on success or intentional skip; False when the pipeline fails.
+        """
         if day_number is not None:
             day = int(day_number)
-            self._run_pipeline_for_day(day)
-            return
+            return self._run_pipeline_for_day(day)
 
         today = self._today_in_timezone()
         if not self._should_publish_today(today):
             logger.info("Skipping publish for {} due to random twice-weekly schedule", today)
-            return
+            return True
 
         day = self._cursor_day_for_today(today)
         if self._run_pipeline_for_day(day):
             self._advance_cursor_after_publish(today)
+            return True
+        return False
 
     def _run_pipeline_for_day(self, day: int) -> bool:
         logger.info("Starting pipeline for calendar day {}", day)

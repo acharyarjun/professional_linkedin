@@ -57,7 +57,10 @@ def main() -> None:
 
     if args.run_now or args.day:
         day = args.day or None
-        orchestrator.run_once(day)
+        ok = orchestrator.run_once(day)
+        if not ok:
+            print("Pipeline failed.", file=sys.stderr)
+            sys.exit(1)
     elif args.schedule:
         scheduler = PostScheduler(config, orchestrator)
         scheduler.start()

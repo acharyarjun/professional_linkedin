@@ -14,17 +14,24 @@ jobs:
   exchange:
     runs-on: ubuntu-latest
     steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install requests
+        run: pip install requests
+
       - name: Exchange auth code for access token
         env:
           CODE: ${{ github.event.inputs.authorization_code }}
           CLIENT_ID: ${{ secrets.LINKEDIN_CLIENT_ID }}
           CLIENT_SECRET: ${{ secrets.LINKEDIN_CLIENT_SECRET }}
         run: |
-          RESPONSE=$(curl -s -S -X POST 'https://www.linkedin.com/oauth/v2/accessToken' \
-            --data-urlencode 'grant_type=authorization_code' \
-            --data-urlencode "code=${CODE}" \
-            --data-urlencode 'redirect_uri=http://127.0.0.1:8765/oauth/callback' \
-            --data-urlencode "client_id=${CLIENT_ID}" \
-            --data-urlencode "client_secret=${CLIENT_SECRET}")
-          echo "Raw response: $RESPONSE"
-          echo "$RESPONSE" | python3 -c "import sys,json; d=json.load(sys.stdin); print('access_token:', d.get('access_token','NOT_FOUND'))"
+          python scripts/exchange_linkedin_token.py \
+            --code "$CODE" \
+            --client-id "$CLIENT_ID" \
+            --client-secret "$CLIENT_SECRET"

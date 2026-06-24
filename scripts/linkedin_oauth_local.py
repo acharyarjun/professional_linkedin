@@ -234,6 +234,13 @@ def main() -> None:
     if member_sub:
         updates["LINKEDIN_MEMBER_SUB"] = member_sub
         print("OpenID id_token present; member sub will be saved for profile API fallback.")
+    if exp is not None:
+        updates["LINKEDIN_TOKEN_EXPIRES_IN"] = str(exp)
+        print(
+            "Token expires in ~{} seconds (~60 days). "
+            "Run `python scripts/push_linkedin_secrets.py` after OAuth to update GitHub secrets.",
+            exp,
+        )
 
     print("Verifying token against GET /v2/userinfo...")
     verify = requests.get(
@@ -257,6 +264,7 @@ def main() -> None:
             )
             _update_env_keys(updates)
             print("Run: python main.py --test-linkedin")
+            print("Then: python scripts/push_linkedin_secrets.py")
             return
         print(
             "Fix: enable 'Sign In with LinkedIn using OpenID Connect' (Products), "
@@ -268,6 +276,7 @@ def main() -> None:
     print("LINKEDIN_ACCESS_TOKEN obtained and verified.")
     _update_env_keys(updates)
     print("Run: python main.py --test-linkedin")
+    print("Then: python scripts/push_linkedin_secrets.py")
 
 
 if __name__ == "__main__":

@@ -209,6 +209,14 @@ class LinkedInPublisher:
                 "recent_posts": [],
             }
 
+        ui_body = (resp_ui.text or "")[:1200]
+        if resp_ui.status_code in (401, 403) and "EXPIRED_ACCESS_TOKEN" in ui_body:
+            raise RuntimeError(
+                "LINKEDIN_ACCESS_TOKEN expired. Re-run OAuth "
+                "(python scripts/linkedin_oauth_local.py) and update GitHub secrets "
+                "(python scripts/push_linkedin_secrets.py or Get LinkedIn Token workflow)."
+            )
+
         member_sub = getattr(self._config, "linkedin_member_sub", "") or ""
         member_sub = member_sub.strip()
         if member_sub:
@@ -216,6 +224,12 @@ class LinkedInPublisher:
                 "LinkedIn userinfo HTTP {}; using LINKEDIN_MEMBER_SUB from OpenID id_token",
                 resp_ui.status_code,
             )
+            probe = requests.get(LINKEDIN_ME_URL, headers=self._auth_headers(restli=True), timeout=30)
+            probe_body = (probe.text or "")[:1200]
+            if probe.status_code in (401, 403) and "EXPIRED_ACCESS_TOKEN" in probe_body:
+                raise RuntimeError(
+                    "LINKEDIN_ACCESS_TOKEN expired. Re-run OAuth and update GitHub secrets."
+                )
             logger.success("LinkedIn OAuth OK — member id from id_token")
             return {
                 "ok": True,

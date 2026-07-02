@@ -80,25 +80,46 @@ class IndustrialAIOrchestrator:
             "last_published_date": "",
         }
 
-    def _load_cursor_state(self) -> dict[str, object]:
-        path = self._cursor_file_path()
-        state = self._default_cursor_state()
-        if not path.exists():
-            self._save_cursor_state(state)
+    def _is_pristine_cursor(self, state: dict[str, object]) -> bool:
+        return (
+            int(state["next_topic_index"]) == 1
+            and int(state["topics_posted_lifetime"]) == 0
+            and not state.get("last_published_date")
+        )
+
+    def _maybe_seed_cursor_from_calendar(self, state: dict[str, object]) -> dict[str, object]:
+        if not self._config.use_publish_cursor:
+            return state
+        if not self._is_pristine_cursor(state):
+            return state
+        seq_start = self._config.calendar_sequence_start
+        if seq_start is None:
             return state
 
-        try:
-            raw = json.loads(path.read_text(encoding="utf-8"))
-        except (json.JSONDecodeError, OSError) as exc:
-            logger.warning("Cursor file unreadable; resetting cursor: {}", exc)
-            self._save_cursor_state(state)
+        today = self._today_in_timezone()
+        n_topics = len(self._calendar_days())
+        expected = calendar_slot_for_date(
+            today,
+            sequence_start=seq_start,
+            cycle_length=n_topics,
+        )
+        if expected <= 1:
             return state
 
-        if not isinstance(raw, dict):
-            logger.warning("Cursor file has invalid schema; resetting cursor")
-            self._save_cursor_state(state)
-            return state
+        seeded = {
+            "schema_version": 1,
+            "next_topic_index": expected,
+            "topics_posted_lifetime": int(state["topics_posted_lifetime"]),
+            "last_published_date": state["last_published_date"],
+        }
+        self._save_cursor_state(seeded)
+        logger.info(
+            "Seeded publish cursor from CALENDAR_SEQUENCE_START: next_topic_index={} (was 1)",
+            expected,
+        )
+        return seeded
 
+    def _parse_cursor_raw(self, raw: dict[str, object]) -> dict[str, object]:
         n_topics = len(self._calendar_days())
         next_idx = raw.get("next_topic_index", 1)
         try:
@@ -120,13 +141,54 @@ class IndustrialAIOrchestrator:
         if not isinstance(last_date, str):
             last_date = ""
 
-        state = {
+        return {
             "schema_version": 1,
             "next_topic_index": next_idx,
             "topics_posted_lifetime": posted_total,
             "last_published_date": last_date,
         }
-        return state
+
+    def _load_cursor_state(self) -> dict[str, object]:
+        path = self._cursor_file_path()
+        state = self._default_cursor_state()
+        if not path.exists():
+            self._save_cursor_state(state)
+            return self._maybe_seed_cursor_from_calendar(state)
+
+        try:
+            raw = json.loads(path.read_text(encoding="utf-8"))
+        except (json.JSONDecodeError, OSError) as exc:
+            logger.warning("Cursor file unreadable; resetting cursor: {}", exc)
+            self._save_cursor_state(state)
+            return self._maybe_seed_cursor_from_calendar(state)
+
+        if not isinstance(raw, dict):
+            logger.warning("Cursor file has invalid schema; resetting cursor")
+            self._save_cursor_state(state)
+            return self._maybe_seed_cursor_from_calendar(state)
+
+        state = self._parse_cursor_raw(raw)
+        return self._maybe_seed_cursor_from_calendar(state)
+
+    def set_cursor(self, next_index: int) -> None:
+        """Set the next topic index without auto-seeding from the calendar."""
+        n_topics = len(self._calendar_days())
+        if next_index < 1 or next_index > n_topics:
+            raise ValueError(f"next_index must be 1..{n_topics}, got {next_index}")
+
+        path = self._cursor_file_path()
+        state = self._default_cursor_state()
+        if path.exists():
+            try:
+                raw = json.loads(path.read_text(encoding="utf-8"))
+                if isinstance(raw, dict):
+                    state = self._parse_cursor_raw(raw)
+            except (json.JSONDecodeError, OSError):
+                pass
+
+        state["next_topic_index"] = next_index
+        self._save_cursor_state(state)
+        logger.info("Publish cursor set: next_topic_index={}", next_index)
 
     def _save_cursor_state(self, state: dict[str, object]) -> None:
         path = self._cursor_file_path()

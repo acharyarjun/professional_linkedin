@@ -21,6 +21,12 @@ def main() -> None:
         action="store_true",
         help="Verify LinkedIn OAuth (GET /v2/me) using LINKEDIN_ACCESS_TOKEN (no Gemini key needed)",
     )
+    parser.add_argument(
+        "--set-cursor",
+        type=int,
+        metavar="N",
+        help="Set next publish cursor to calendar day N (1..N rows in post_calendar.csv)",
+    )
     args = parser.parse_args()
 
     if args.test_linkedin:
@@ -55,6 +61,15 @@ def main() -> None:
 
     orchestrator = IndustrialAIOrchestrator(config)
 
+    if args.set_cursor is not None:
+        try:
+            orchestrator.set_cursor(args.set_cursor)
+        except ValueError as exc:
+            print(str(exc), file=sys.stderr)
+            sys.exit(1)
+        print(f"Publish cursor set to day {args.set_cursor}.")
+        return
+
     if args.run_now or args.day:
         day = args.day or None
         ok = orchestrator.run_once(day)
@@ -66,7 +81,7 @@ def main() -> None:
         scheduler.start()
     else:
         print(
-            "Use --run-now, --day N, --schedule, or --test-linkedin. "
+            "Use --run-now, --day N, --set-cursor N, --schedule, or --test-linkedin. "
             "Use --dry-run to skip publishing."
         )
 

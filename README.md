@@ -67,6 +67,22 @@ The **`.env` file is gitignored** and will not be committed or pushed; only **`.
 | `PUBLISH_CURSOR_PATH` | Path to persistent cursor JSON (default `data/publish_cursor.json`). |
 | `DRY_RUN` | `true` to skip publishing |
 
+### Publish cursor
+
+When `USE_PUBLISH_CURSOR=true`, the next topic comes from `next_topic_index` in `data/publish_cursor.json` and advances after each successful publish. GitHub Actions commits cursor updates back to the repo after each run.
+
+**Auto-seed:** If the cursor is in its pristine default state (`next_topic_index=1`, `topics_posted_lifetime=0`, empty `last_published_date`) and `CALENDAR_SEQUENCE_START` is set, the orchestrator seeds the cursor from today's calendar slot so a fresh cursor does not republish day 1 mid-sequence.
+
+**Manual resume:** Auto-seed uses today's calendar date, not your last published topic. To resume after a gap (e.g. continue from day 60), set the cursor explicitly:
+
+```bash
+python main.py --set-cursor 60
+```
+
+Or edit `data/publish_cursor.json` directly and push to `main`.
+
+**Avoid** manual GitHub Actions runs with `day_number` set — that posts a specific day without advancing the cursor.
+
 ## Test LinkedIn (no Gemini key)
 
 With `LINKEDIN_ACCESS_TOKEN` set in `.env`, verify the token against LinkedIn (`GET /v2/userinfo`, then `GET /v2/me` if needed):
@@ -99,6 +115,9 @@ python main.py --run-now
 
 # Specific calendar day (1–N)
 python main.py --day 42
+
+# Set next cursor topic without publishing
+python main.py --set-cursor 60
 
 # Daemon scheduler (cron at configured local time)
 python main.py --schedule
